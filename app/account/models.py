@@ -1,9 +1,10 @@
-from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from pydantic import BaseModel, EmailStr
-from datetime import datetime, timezone, timedelta
-from typing import Optional
+# -*- coding: utf-8 -*-
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy.sql import func
 from app.core.database import Base
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+from datetime import datetime, timezone, timedelta
 
 # 定義台灣時區 UTC+8
 TAIWAN_TZ = timezone(timedelta(hours=8))
@@ -12,146 +13,97 @@ def get_taiwan_time():
     """取得台灣時間 (UTC+8)，去除時區資訊儲存到資料庫"""
     return datetime.now(TAIWAN_TZ).replace(tzinfo=None)
 
-Base = declarative_base()
 
-# --- SQLAlchemy 資料庫模型 ---
+# ==================== SQLAlchemy 資料庫模型 ====================
 
 class User(Base):
-    """用戶資料表"""
-    __tablename__ = "users"
+    """用戶資料表 - 對應 UserAuth"""
+    __tablename__ = "UserAuth"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    account = Column(String, nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    is_active = Column(Boolean, default=True)
+    phone = Column(String, unique=True, nullable=True)
+    password = Column(String, nullable=False)
+    code = Column(String, nullable=True)
+    verified = Column(Boolean, default=False)
+    privacy_policy = Column(Boolean, default=False)
+    must_change_password = Column(Boolean, default=False)
+    login_token = Column(String, nullable=True)
+    password_reset_token = Column(String, nullable=True)
+    token_expire_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=get_taiwan_time)
+    updated_at = Column(DateTime, default=get_taiwan_time, onupdate=get_taiwan_time)
+
 
 class VerificationCodeDB(Base):
+    """驗證碼資料表"""
     __tablename__ = "verification_codes"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     email = Column(String, index=True, nullable=False)
     code = Column(String, nullable=False)
     created_at = Column(DateTime, default=get_taiwan_time)
-    is_used = Column(Boolean, default=False)  # 確保初始值為 False
+    is_used = Column(Boolean, default=False)
+    expires_at = Column(DateTime, nullable=True)
 
-class UserDefaults(Base):
-    __tablename__ = "user_defaults"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    sugar_morning_max = Column(Integer, default=0)
-    sugar_morning_min = Column(Integer, default=0)
-    sugar_evening_max = Column(Integer, default=0)
-    sugar_evening_min = Column(Integer, default=0)
-    sugar_before_max = Column(Integer, default=0)
-    sugar_before_min = Column(Integer, default=0)
-    sugar_after_max = Column(Integer, default=0)
-    sugar_after_min = Column(Integer, default=0)
-    systolic_max = Column(Integer, default=0)
-    systolic_min = Column(Integer, default=0)
-    diastolic_max = Column(Integer, default=0)
-    diastolic_min = Column(Integer, default=0)
-    pulse_max = Column(Integer, default=0)
-    pulse_min = Column(Integer, default=0)
-    weight_max = Column(Integer, default=0)
-    weight_min = Column(Integer, default=0)
-    bmi_max = Column(Float, default=0.0)
-    bmi_min = Column(Float, default=0.0)
-    body_fat_max = Column(Float, default=0.0)
-    body_fat_min = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+# ==================== Pydantic 請求模型 ====================
 
-class UserSettings(Base):
-    __tablename__ = "user_settings"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    after_recording = Column(Boolean, default=False)
-    no_recording_for_a_day = Column(Boolean, default=False)
-    over_max_or_under_min = Column(Boolean, default=False)
-    after_meal = Column(Boolean, default=False)
-    unit_of_sugar = Column(Boolean, default=False)
-    unit_of_weight = Column(Boolean, default=False)
-    unit_of_height = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-
-class UserProfile(Base):
-    __tablename__ = "user_profiles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    fcm_id = Column(String, nullable=True)
-    name = Column(String, nullable=True)
-    birthday = Column(String, nullable=True)
-    gender = Column(Boolean, nullable=True)
-    address = Column(String, nullable=True)
-    weight = Column(String, nullable=True)
-    height = Column(Float, nullable=True)
-    email = Column(String, unique=True, nullable=False)
-    phone = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-
-# --- Pydantic API 模型 ---
-
-class BaseResponse(BaseModel):
-    """基本回應格式"""
-    status: str
-    message: str
-
-class UserCreate(BaseModel):
+class UserRegister(BaseModel):
     """用戶註冊請求"""
-    email: EmailStr
-    password: str
+    email: EmailStr = Field(..., description="電子郵件")
+    password: str = Field(..., min_length=6, description="密碼（至少6位）")
+
 
 class UserLogin(BaseModel):
     """用戶登入請求"""
-    email: EmailStr
-    password: str
+    email: EmailStr = Field(..., description="電子郵件")
+    password: str = Field(..., description="密碼")
 
-class VerificationBase(BaseModel):
+
+class PasswordReset(BaseModel):
+    """重設密碼請求（需要舊密碼）"""
+    oldPassword: str = Field(..., description="舊密碼")
+    newPassword: str = Field(..., min_length=6, description="新密碼（至少6位）")
+
+
+class PasswordForgot(BaseModel):
+    """忘記密碼請求（透過驗證碼重設）"""
+    email: EmailStr = Field(..., description="電子郵件")
+    code: str = Field(..., description="驗證碼")
+    newPassword: str = Field(..., min_length=6, description="新密碼（至少6位）")
+
+
+class VerificationSend(BaseModel):
     """發送驗證碼請求"""
-    email: EmailStr
+    email: EmailStr = Field(..., description="電子郵件")
 
-class VerificationCode(VerificationBase):
+
+class VerificationCheck(BaseModel):
     """檢查驗證碼請求"""
-    code: str
+    email: EmailStr = Field(..., description="電子郵件")
+    code: str = Field(..., description="驗證碼")
+
+
+# ==================== Pydantic 回應模型 ====================
+
+class BaseResponse(BaseModel):
+    """基本回應格式"""
+    status: str = Field(..., description="狀態碼 (0:成功, 1:失敗)")
+    message: str = Field(..., description="訊息")
+
+
+class RegisterResponse(BaseResponse):
+    """註冊成功回應"""
+    user_id: Optional[int] = Field(None, description="用戶 ID")
+
+
+class TokenResponse(BaseResponse):
+    """登入成功回應"""
+    token: Optional[str] = Field(None, description="JWT Token")
+
 
 class VerificationSendResponse(BaseResponse):
     """發送驗證碼成功回應"""
-    code: str
-
-class TokenResponse(BaseModel):
-    """登入成功回應"""
-    status: str
-    token: str
-
-class PasswordReset(BaseModel):
-    """重設密碼請求"""
-    oldPassword: str
-    newPassword: str
-
-class PasswordForgot(BaseModel):
-    """忘記密碼請求"""
-    email: EmailStr
-
-class VerificationCodeResponse(BaseModel):
-    """驗證碼詳細回應"""
-    id: int
-    email: str
-    code: str
-    created_at: str
-    is_used: bool
-    
-    class Config:
-        from_attributes = True
-
-class UserResponse(BaseModel):
-    """用戶資訊回應"""
-    id: int
-    email: str
-    is_active: bool
-    
-    class Config:
-        from_attributes = True
+    code: str = Field(..., description="六位數驗證碼")

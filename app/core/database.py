@@ -2,8 +2,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# 資料庫連接設定（這裡使用 SQLite 作為範例）
-SQLALCHEMY_DATABASE_URL = "sqlite:///./app.db"
+# 資料庫連接設定（使用 Puyuan.db）
+SQLALCHEMY_DATABASE_URL = "sqlite:///./Puyuan.db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 

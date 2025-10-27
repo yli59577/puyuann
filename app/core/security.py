@@ -16,12 +16,12 @@ load_dotenv()
 ACCESS_TOKEN_EXPIRE_HOURS = 1  # 預設為 1 小時
 
 def hash_password(password: str) -> str:
-    """雜湊密碼"""
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    """暫時停用密碼加密，直接返回明文密碼"""
+    return password
 
-def vertify_password(plain_password: str, hashed_password: str) -> bool:
-    """驗證密碼"""
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """暫時停用密碼驗證，直接比對明文密碼"""
+    return plain_password == hashed_password
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """創建 JWT token"""
@@ -36,7 +36,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def vertify_token(token: str):
+def verify_token(token: str):
     """驗證 JWT token"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

@@ -3,7 +3,7 @@ from sqlalchemy import and_
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from app.account.models import User, VerificationCodeDB
-from app.core.security import hash_password, vertify_password, generate_verification_code
+from app.core.security import hash_password, verify_password, generate_verification_code
 
 # 台灣時區
 TAIWAN_TZ = timezone(timedelta(hours=8))
@@ -29,7 +29,7 @@ class AccountService:
     def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
         """驗證用戶信箱和密碼"""
         user = db.query(User).filter(User.email == email).first()
-        if user and vertify_password(password, user.hashed_password):
+        if user and verify_password(password, user.hashed_password):
             return user
         return None
 
