@@ -157,7 +157,70 @@ CREATE TABLE IF NOT EXISTS DiaryDiet (
 """
 )
 
+# ==================== 測量上傳相關資料表 ====================
+
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS blood_pressure_records(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    systolic INTEGER NOT NULL,  -- 收縮壓
+    diastolic INTEGER NOT NULL,  -- 舒張壓
+    pulse INTEGER,  -- 脈搏
+    measured_at DATETIME NOT NULL,  -- 測量時間
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES UserAuth(id)
+);
+"""
+)
+
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS weight_records(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    weight FLOAT NOT NULL,  -- 體重 (kg)
+    bmi FLOAT,  -- BMI
+    body_fat FLOAT,  -- 體脂率 (%)
+    measured_at DATETIME NOT NULL,  -- 測量時間
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES UserAuth(id)
+);
+"""
+)
+
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS blood_sugar_records(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    glucose INTEGER NOT NULL,  -- 血糖值 (mg/dL)
+    meal_time INTEGER NOT NULL,  -- 測量時段 (0:早上, 1:中午, 2:晚上)
+    measured_at DATETIME NOT NULL,  -- 測量時間
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES UserAuth(id)
+);
+"""
+)
+
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS measurement_records(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    record_type INTEGER NOT NULL,  -- 記錄類型 (0:血壓, 1:體重, 2:血糖)
+    record_id INTEGER NOT NULL,  -- 對應記錄的 ID
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 上傳時間
+    FOREIGN KEY(user_id) REFERENCES UserAuth(id)
+);
+"""
+)
+
 
 conn.commit()
 
 conn.close()
+
