@@ -141,11 +141,11 @@ CREATE TABLE IF NOT EXISTS BloodSugar (
 cursor.execute(
     """
 CREATE TABLE IF NOT EXISTS DiaryDiet (
-    id VARCHAR(50) PRIMARY KEY,               -- 唯一識別 ID
+    id INTEGER PRIMARY KEY AUTOINCREMENT,     -- 唯一識別 ID (自動遞增)
     user_id INTEGER NOT NULL,                 -- 使用者 ID
     description VARCHAR(100),                 -- 描述
     meal INTEGER,                             -- 餐次
-    tag VARCHAR(100),                         -- 標籤
+    tag VARCHAR(100),                         -- 標籤 (JSON 格式)
     image INTEGER,                            -- 照片數量
     lat REAL,                                 -- 緯度
     lng REAL,                                 -- 經度

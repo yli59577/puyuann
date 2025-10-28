@@ -5,6 +5,7 @@ from app.core.database import engine, Base, get_db
 from app._user.api import router as user_router
 from app.account.api import router as account_router
 from app._else.api import router as else_router
+from app._journal.api import router as journal_router  # 添加日記路由
 from app._user.models import UserProfile  # 修正導入
 from pydantic import BaseModel
 import sys
@@ -18,9 +19,6 @@ if measurement_path not in sys.path:
 # 導入測量上傳 API
 import api as measurement_api
 measurement_router = measurement_api.router
-
-# 導入測量上傳模型以註冊到 Base (這很重要!)
-import models as measurement_models
 
 # 建立所有資料表
 Base.metadata.create_all(bind=engine)
@@ -52,6 +50,7 @@ app.add_middleware(
 app.include_router(account_router, prefix="/api/account")
 app.include_router(user_router, prefix="/api/user")
 app.include_router(measurement_router)  # 測量上傳 API
+app.include_router(journal_router)  # 日記 API
 app.include_router(else_router, prefix="/api")
 
 @app.get("/")
