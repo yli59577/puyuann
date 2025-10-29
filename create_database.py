@@ -1,9 +1,18 @@
+"""
+資料庫初始化腳本
+
+注意:
+- 使用 CREATE TABLE IF NOT EXISTS 確保不會刪除現有資料
+- 只會新增缺少的資料表,不會影響已存在的表和資料
+- 可以安全地重複執行此腳本
+"""
 import sqlite3
 
 conn = sqlite3.connect("Puyuan.db")
 
 cursor = conn.cursor()
-cursor.execute("DROP TABLE IF EXISTS UserAuth")
+
+# ✅ 移除 DROP TABLE,使用 CREATE TABLE IF NOT EXISTS 保留現有資料
 cursor.execute(
     """
 CREATE TABLE IF NOT EXISTS UserAuth(
@@ -214,6 +223,66 @@ CREATE TABLE IF NOT EXISTS measurement_records(
     record_type INTEGER NOT NULL,  -- 記錄類型 (0:血壓, 1:體重, 2:血糖)
     record_id INTEGER NOT NULL,  -- 對應記錄的 ID
     uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 上傳時間
+    FOREIGN KEY(user_id) REFERENCES UserAuth(id)
+);
+"""
+)
+
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS a1c_records(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 自動遞增 ID
+    user_id INTEGER NOT NULL,  -- 用戶 ID
+    a1c VARCHAR(50) NOT NULL,  -- 糖化血色素值
+    recorded_at DATETIME NOT NULL,  -- 記錄時間
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 建立時間
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 更新時間
+    FOREIGN KEY(user_id) REFERENCES UserAuth(id)
+);
+"""
+)
+
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS medical_info(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 自動遞增 ID
+    user_id INTEGER NOT NULL UNIQUE,  -- 用戶 ID (唯一)
+    oad INTEGER DEFAULT 0,  -- 糖尿病口服藥 (0:否, 1:是)
+    insulin INTEGER DEFAULT 0,  -- 胰島素 (0:否, 1:是)
+    anti_hypertensives INTEGER DEFAULT 0,  -- 高血壓藥 (0:否, 1:是)
+    diabetes_type INTEGER DEFAULT 0,  -- 糖尿病類型 (0:無, 1:糖尿病前期, 2:第一型, 3:第二型, 4:妊娠)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 建立時間
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 更新時間
+    FOREIGN KEY(user_id) REFERENCES UserAuth(id)
+);
+"""
+)
+
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS drug_used(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 自動遞增 ID
+    user_id INTEGER NOT NULL,  -- 用戶 ID
+    name VARCHAR(100) NOT NULL,  -- 藥物名稱
+    type INTEGER NOT NULL,  -- 藥物類型 (0:糖尿病藥物, 1:高血壓藥物)
+    recorded_at DATETIME NOT NULL,  -- 記錄時間
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 建立時間
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 更新時間
+    FOREIGN KEY(user_id) REFERENCES UserAuth(id)
+);
+"""
+)
+
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS care_info(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 自動遞增 ID
+    user_id INTEGER NOT NULL,  -- 用戶 ID
+    member_id INTEGER,  -- 會員 ID (可選)
+    reply_id INTEGER,  -- 回覆 ID (可選)
+    message TEXT NOT NULL,  -- 關懷訊息
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 建立時間
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 更新時間
     FOREIGN KEY(user_id) REFERENCES UserAuth(id)
 );
 """
