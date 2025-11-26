@@ -5,25 +5,21 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 
 # 導入模型和模組
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from models import (
+from .models import (
     A1cUpload,
     A1cDeleteRequest,
     BaseResponse,
     A1cListResponse,
     A1cRecord
 )
-from module import A1cModule
+from .module import A1cModule
 
 router = APIRouter()
 security = HTTPBearer()
 
 # ==================== 糖化血色素 ====================
 
-@router.post("/api/user/a1c", response_model=BaseResponse, summary="上傳糖化血色素", tags=["糖化血色素"])
+@router.post("/a1c", response_model=BaseResponse, summary="上傳糖化血色素", tags=["糖化血色素"])
 def upload_a1c(
     request: A1cUpload,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -63,7 +59,7 @@ def upload_a1c(
         return BaseResponse(status="1", message="失敗")
 
 
-@router.get("/api/user/a1c", response_model=A1cListResponse, summary="獲取糖化血色素", tags=["糖化血色素"])
+@router.get("/a1c", response_model=A1cListResponse, summary="獲取糖化血色素", tags=["糖化血色素"])
 def get_a1c_list(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -97,7 +93,7 @@ def get_a1c_list(
         return A1cListResponse(status="1", message="失敗", a1cs=[])
 
 
-@router.delete("/api/user/a1c", response_model=BaseResponse, summary="刪除糖化血色素", tags=["糖化血色素"])
+@router.delete("/a1c", response_model=BaseResponse, summary="刪除糖化血色素", tags=["糖化血色素"])
 def delete_a1c(
     request: A1cDeleteRequest,
     credentials: HTTPAuthorizationCredentials = Depends(security),

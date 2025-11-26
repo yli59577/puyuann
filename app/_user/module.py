@@ -1,32 +1,53 @@
 ﻿# -*- coding: utf-8 -*-
 from sqlalchemy.orm import Session
-from app.account.models import User
+from app.core.security import hash_password, verify_password, create_access_token
+from app.account.models import User as UserAuth
 from app._user.models import UserProfile, UserDefaults, UserSettings
-from app.core.security import verify_token
-from typing import Optional, Dict
+from app.care.models import Care
+from typing import Optional
+import jwt
+from datetime import datetime, timedelta
+
+# JWT 設定
+SECRET_KEY = "YOUR_SECRET_KEY"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 天
 
 class UserModule:
-    '''用戶模組 - 提供可重用的業務邏輯'''
+    
+    @staticmethod
+    def parse_user_id_from_token(authorization: Optional[str]) -> Optional[int]:
+        """從 Authorization Header 中解析用戶 ID"""
+        if not authorization:
+            print("缺少 Authorization header")
+            return None
+        
+        try:
+            token_type, token = authorization.split(" ")
+            if token_type != "Bearer":
+                print(f"Token 類型錯誤: {token_type}")
+                return None
+            
+            # print(f"接收到的 Authorization header: {authorization[:50]}...")
+            # print(f"解析出的 token: {token}")
+
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = int(payload.get("sub"))
+            
+            # print(f"解碼後的 payload: {payload}, User ID: {user_id}")
+            return user_id
+        except jwt.ExpiredSignatureError:
+            print("Token 已過期")
+            return None
+        except (jwt.PyJWTError, ValueError, TypeError) as e:
+            print(f"Token 解析失敗: {e}")
+            return None
 
     @staticmethod
-    def parse_user_id_from_token(authorization: str) -> Optional[int]:
-        '''從 Authorization Header 解析用戶 ID'''
-        try:
-            if not authorization or not authorization.startswith('Bearer '):
-                return None
-            token = authorization.split(' ')[1]
-            payload = verify_token(token)
-            if not payload:
-                return None
-            return int(payload.get('sub'))
-        except:
-            return None
-    
-    @staticmethod
-    def get_user(db: Session, user_id: int) -> Optional[User]:
-        '''查詢用戶'''
-        return db.query(User).filter(User.id == user_id).first()
-    
+    def get_user(db: Session, user_id: int) -> Optional[UserAuth]:
+        '''查詢用戶基本認證資料'''
+        return db.query(UserAuth).filter(UserAuth.id == user_id).first()
+
     @staticmethod
     def get_profile(db: Session, user_id: int) -> Optional[UserProfile]:
         '''查詢用戶個人資料'''
@@ -79,7 +100,7 @@ class UserModule:
             print(f'更新預設值錯誤: {str(e)}')
             db.rollback()
             return False
-    
+
     @staticmethod
     def create_or_update_settings(db: Session, user_id: int, update_data: dict) -> bool:
         '''創建或更新用戶設定'''
@@ -98,47 +119,42 @@ class UserModule:
             print(f'更新設定錯誤: {str(e)}')
             db.rollback()
             return False
-    
+
     @staticmethod
-    def get_user_complete_data(db: Session, user_id: int) -> Optional[Dict]:
-        '''獲取用戶完整資料'''
+    def get_user_complete_data(db: Session, user_id: int) -> Optional[dict]:
+        """獲取用戶所有相關資料，組合成一個字典"""
         try:
-            user = UserModule.get_user(db, user_id)
-            if not user:
+            # 1. 查詢 UserAuth 表 (這是主要表格，必須存在)
+            user_auth = db.query(UserAuth).filter(UserAuth.id == user_id).first()
+            if not user_auth:
                 return None
-            profile = UserModule.get_profile(db, user_id)
-            defaults = UserModule.get_defaults(db, user_id)
-            settings = UserModule.get_settings(db, user_id)
-            return {
-                'id': user.id,
-                'email': user.email,
-                'account': user.account,
-                'profile': {
-                    'name': profile.name if profile else None,
-                    'gender': profile.gender if profile else None,
-                    'birthday': profile.birthday if profile else None,
-                    'height': profile.height if profile else None,
-                    'weight': profile.weight if profile else None,
-                    'phone': profile.phone if profile else None,
-                    'address': profile.address if profile else None,
-                    'avatar': profile.avatar if profile else None,
-                } if profile else None,
-                'defaults': {
-                    'sugar_morning_max': defaults.sugar_morning_max if defaults else 0,
-                    'sugar_morning_min': defaults.sugar_morning_min if defaults else 0,
-                    'sugar_afternoon_max': defaults.sugar_afternoon_max if defaults else 0,
-                    'sugar_afternoon_min': defaults.sugar_afternoon_min if defaults else 0,
-                    'sugar_evening_max': defaults.sugar_evening_max if defaults else 0,
-                    'sugar_evening_min': defaults.sugar_evening_min if defaults else 0,
-                } if defaults else None,
-                'settings': {
-                    'after_recording': settings.after_recording if settings else False,
-                    'no_recording_for_a_day': settings.no_recording_for_a_day if settings else False,
-                    'notification_enabled': settings.notification_enabled if settings else True,
-                    'language': settings.language if settings else 'zh-TW',
-                    'theme': settings.theme if settings else 'light',
-                } if settings else None,
+
+            # 2. 查詢 UserProfile 表 (這是附屬表格，可能不存在)
+            user_profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+
+            # 3. 組合資料
+            user_data = {
+                "id": user_auth.id,
+                "account": user_auth.account or "",
+                "email": user_auth.email or "",
+                "phone": (user_profile.phone or "") if user_profile else "",
+                "name": (user_profile.name or "") if user_profile else "",
+                "group": "",
+                "gender": (user_profile.gender if user_profile and user_profile.gender is not None else 0),
+                "birthday": (user_profile.birthday or "") if user_profile else "",
+                "height": (user_profile.height or 0.0) if user_profile else 0.0,
+                "weight": (user_profile.weight or 0.0) if user_profile else 0.0,
+                "fcm_id": (user_profile.fcm_id or "") if user_profile else "",
+                "address": (user_profile.address or "") if user_profile else "",
+                "avatar": (user_profile.avatar or "") if user_profile else "",
+                "fb_id": (user_profile.fb_id or "") if user_profile else "",
+                "google_id": (user_profile.google_id or "") if user_profile else "",
+                "apple_id": (user_profile.apple_id or "") if user_profile else "",
+                "unread_records": []
             }
+            
+            return user_data
         except Exception as e:
-            print(f'獲取用戶資料錯誤: {str(e)}')
+            import traceback
+            traceback.print_exc()
             return None

@@ -4,7 +4,7 @@
 import sqlite3
 from typing import List, Optional
 from datetime import datetime
-from models import MedicalInfoUpdate, DrugUsedUpload, DrugUsedDeleteRequest, MedicalInfo, DrugUsedRecord
+from .models import MedicalInfoUpdate, DrugUsedUpload, DrugUsedDeleteRequest, MedicalInfo, DrugUsedRecord
 
 
 class MedicineModule:

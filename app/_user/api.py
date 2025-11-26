@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app._user.models import UserProfileUpdate, UserSettingsUpdate, BaseResponse, UserProfileResponse
@@ -7,7 +7,7 @@ from typing import Optional
 
 router = APIRouter()
 
-@router.patch("/api/user", response_model=BaseResponse, summary="更新個人資料", tags=["個人資訊"])
+@router.patch("", response_model=BaseResponse, summary="更新個人資料", tags=["個人資訊"])
 def update_user_profile(
     request: UserProfileUpdate, 
     authorization: Optional[str] = Header(None),
@@ -40,7 +40,7 @@ def update_user_profile(
         return BaseResponse(status="1", message="更新失敗")
 
 
-@router.get("/api/user", response_model=UserProfileResponse, summary="獲取個人資料", tags=["個人資訊"])
+@router.get("", summary="獲取個人資料", tags=["個人資訊"])
 def get_user_profile(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
@@ -49,23 +49,43 @@ def get_user_profile(
     獲取個人資料
     
     - **需要 Bearer Token**
-    - **回傳**: 完整的用戶資料（包含個人資料、預設值、設定）
+    - **回傳用戶所有相關資料**
     """
     # 1. 解析 Token
     user_id = UserModule.parse_user_id_from_token(authorization)
     if not user_id:
-        return UserProfileResponse(status="1", message="身份驗證失敗", data=None)
+        return {"status": "1", "message": "身份驗證失敗", "user": None}
     
-    # 2. 查詢完整用戶資料
+    # 2. 獲取用戶完整資料
     user_data = UserModule.get_user_complete_data(db, user_id)
-    
     if not user_data:
-        return UserProfileResponse(status="1", message="用戶不存在", data=None)
-    
-    return UserProfileResponse(status="0", message="成功", data=user_data)
+        return {"status": "1", "message": "找不到用戶資料", "user": None}
+        
+    # 3. 按照 App 預期的格式回傳
+    try:
+        # 嘗試驗證數據，避免 FastAPI 自動驗證失敗導致回傳 422 (缺少 status 欄位)
+        from app._user.models import UserProfileData
+        # 確保 user_data 符合 UserProfileData 的結構
+        validated_user_data = UserProfileData(**user_data)
+        
+        final_response = {
+            "status": "0",
+            "message": "成功",
+            "user": validated_user_data
+        }
+        print(f"API 最終回傳資料: {final_response}")
+        return final_response
+    except Exception as e:
+        print(f"資料驗證失敗: {e}")
+        # 若驗證失敗，回傳帶有 status 的錯誤訊息，防止 App 崩潰
+        return {
+            "status": "1", 
+            "message": f"資料格式錯誤: {str(e)}", 
+            "user": None
+        }
 
 
-@router.patch("/api/user/setting", response_model=BaseResponse, summary="更新個人設定", tags=["個人資訊"])
+@router.patch("/setting", response_model=BaseResponse, summary="更新個人設定", tags=["個人資訊"])
 def update_user_settings(
     request: UserSettingsUpdate,
     authorization: Optional[str] = Header(None),
@@ -98,7 +118,7 @@ def update_user_settings(
         return BaseResponse(status="1", message="設定更新失敗")
 
 
-@router.put("/api/user/badge", response_model=BaseResponse, summary="更新徽章", tags=["個人資訊"])
+@router.put("/badge", response_model=BaseResponse, summary="更新徽章", tags=["個人資訊"])
 def update_user_badge(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)

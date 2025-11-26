@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from typing import Optional
 
 # 導入模型和模組
 from app._journal.models import (
@@ -11,8 +10,7 @@ from app._journal.models import (
     DeleteRecordsRequest,
     BaseResponse,
     DietUploadResponse,
-    DiaryListResponse,
-    DiaryRecord
+    DiaryListResponse
 )
 from app._journal.module import JournalModule
 
@@ -21,7 +19,7 @@ security = HTTPBearer()
 
 # ==================== 日記 ====================
 
-@router.get("/api/user/diary", response_model=DiaryListResponse, summary="獲取日記列表資料", tags=["日記"])
+@router.get("/diary", response_model=DiaryListResponse, summary="獲取日記列表資料", tags=["日記"])
 def get_diary_list(
     date: str = Query(..., description="要查詢日期 (格式: YYYY-MM-DD)"),
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -75,7 +73,7 @@ def get_diary_list(
         return DiaryListResponse(status="1", message="失敗", diary=[])
 
 
-@router.post("/api/user/diet", response_model=DietUploadResponse, summary="上傳飲食日記", tags=["日記"])
+@router.post("/diet", response_model=DietUploadResponse, summary="上傳飲食日記", tags=["日記"])
 def upload_diet(
     request: DietUpload,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -140,7 +138,7 @@ def upload_diet(
         return DietUploadResponse(status="1", message="失敗", image_url=None)
 
 
-@router.delete("/api/user/records", response_model=BaseResponse, summary="刪除日記記錄", tags=["日記"])
+@router.delete("/records", response_model=BaseResponse, summary="刪除日記記錄", tags=["日記"])
 def delete_records(
     request: DeleteRecordsRequest,
     credentials: HTTPAuthorizationCredentials = Depends(security),

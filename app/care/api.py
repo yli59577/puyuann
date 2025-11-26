@@ -3,15 +3,15 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, Header
 from typing import Optional
-from models import CareMessageUpload, CareListResponse, BaseResponse
-from module import CareModule
+from .models import CareMessageUpload, CareListResponse, BaseResponse
+from .module import CareModule
 
 router = APIRouter(tags=["關懷諮詢"])
 
 care_module = CareModule()
 
 
-@router.get("/api/user/care", response_model=CareListResponse)
+@router.get("/care", response_model=CareListResponse)
 async def get_care_list(
     authorization: Optional[str] = Header(None)
 ):
@@ -41,7 +41,7 @@ async def get_care_list(
         )
 
 
-@router.post("/api/user/care", response_model=BaseResponse)
+@router.post("/care", response_model=BaseResponse)
 async def upload_care_message(
     data: CareMessageUpload,
     authorization: Optional[str] = Header(None)

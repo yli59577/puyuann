@@ -4,7 +4,7 @@
 import sqlite3
 from typing import List, Optional
 from datetime import datetime
-from models import CareMessageUpload, CareRecord
+from .models import CareMessageUpload, CareRecord
 import sys
 import os
 

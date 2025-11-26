@@ -5,11 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 
 # 導入模型和模組
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from models import (
+from .models import (
     MedicalInfoUpdate,
     DrugUsedUpload,
     DrugUsedDeleteRequest,
@@ -17,14 +13,14 @@ from models import (
     MedicalInfoResponse,
     DrugUsedListResponse
 )
-from module import MedicineModule
+from .module import MedicineModule
 
 router = APIRouter()
 security = HTTPBearer()
 
 # ==================== 就醫、藥物資訊 ====================
 
-@router.get("/api/user/medical", response_model=MedicalInfoResponse, summary="獲取就醫資訊", tags=["就醫、藥物資訊"])
+@router.get("/medical", response_model=MedicalInfoResponse, summary="獲取就醫資訊", tags=["就醫、藥物資訊"])
 def get_medical_info(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -56,7 +52,7 @@ def get_medical_info(
         return MedicalInfoResponse(status="1", message="失敗", medical_info=None)
 
 
-@router.patch("/api/user/medical", response_model=BaseResponse, summary="更新就醫資訊", tags=["就醫、藥物資訊"])
+@router.patch("/medical", response_model=BaseResponse, summary="更新就醫資訊", tags=["就醫、藥物資訊"])
 def update_medical_info(
     request: MedicalInfoUpdate,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -102,7 +98,7 @@ def update_medical_info(
         return BaseResponse(status="1", message="失敗")
 
 
-@router.get("/api/user/drug-used", response_model=DrugUsedListResponse, summary="獲取所有藥物資訊", tags=["就醫、藥物資訊"])
+@router.get("/drug-used", response_model=DrugUsedListResponse, summary="獲取所有藥物資訊", tags=["就醫、藥物資訊"])
 def get_drug_used_list(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -137,7 +133,7 @@ def get_drug_used_list(
         return DrugUsedListResponse(status="1", message="失敗", drug_useds=[])
 
 
-@router.post("/api/user/drug-used", response_model=BaseResponse, summary="上傳藥物資訊", tags=["就醫、藥物資訊"])
+@router.post("/drug-used", response_model=BaseResponse, summary="上傳藥物資訊", tags=["就醫、藥物資訊"])
 def upload_drug_used(
     request: DrugUsedUpload,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -180,7 +176,7 @@ def upload_drug_used(
         return BaseResponse(status="1", message="失敗")
 
 
-@router.delete("/api/user/drug-used", response_model=BaseResponse, summary="刪除藥物資訊", tags=["就醫、藥物資訊"])
+@router.delete("/drug-used", response_model=BaseResponse, summary="刪除藥物資訊", tags=["就醫、藥物資訊"])
 def delete_drug_used(
     request: DrugUsedDeleteRequest,
     credentials: HTTPAuthorizationCredentials = Depends(security),

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from sqlalchemy.orm import Session
-from app.account.models import User, VerificationCodeDB
+from app.account.models import User
+from app._user.models import UserProfile  # 導入 UserProfile 模型
 from app.core.security import hash_password, verify_password, create_access_token
 from typing import Optional, Dict
 from datetime import datetime, timedelta
@@ -38,23 +39,37 @@ class AccountModule:
             # 2. 密碼加密
             hashed_pwd = hash_password(password)
             
-            # 3. 創建新用戶
+            # 3. 創建新用戶 (UserAuth)
             new_user = User(
                 email=email,
                 password=hashed_pwd,
                 account=email.split('@')[0],
-                verified=False
+                verified=False # 根據業務邏輯，新註冊用戶應為未驗證
             )
             db.add(new_user)
+            
+            # 為了獲取 new_user.id，我們需要先 flush 到資料庫
+            db.flush()
+
+            # 4. 創建對應的用戶資料 (user_profiles)
+            # 注意：規格書中沒有 invitCode 和 badge，這裡不再添加
+            new_profile = UserProfile(
+                user_id=new_user.id,
+                name=email.split('@')[0] # 預設名字為帳號
+            )
+            db.add(new_profile)
+            
+            # 5. 提交交易
             db.commit()
             db.refresh(new_user)
+            db.refresh(new_profile)
             
             return {"success": True, "message": "註冊成功", "user_id": new_user.id}
             
         except Exception as e:
-            print(f"註冊錯誤: {str(e)}")
-            db.rollback()
-            return {"success": False, "message": "註冊失敗", "user_id": None}
+            print(f"註冊時發生錯誤: {str(e)}")
+            db.rollback() # 如果發生任何錯誤，回滾所有操作
+            return {"success": False, "message": f"註冊失敗: {e}", "user_id": None}
     
     
     @staticmethod
@@ -66,27 +81,34 @@ class AccountModule:
             {"success": bool, "message": str, "token": str}
         """
         try:
+            print("--- [登入流程開始] ---")
             # 1. 查詢用戶
+            print(f"步驟 1: 正在資料庫中查詢用戶 {email}...")
             user = AccountModule.get_user_by_email(db, email)
             if not user:
+                print(f"結果: 找不到用戶 {email}。")
                 return {"success": False, "message": "帳號或密碼錯誤", "token": None}
+            print("結果: 已找到用戶。")
             
             # 2. 驗證密碼
+            print("步驟 2: 正在驗證密碼...")
             if not verify_password(password, user.password):
+                print("結果: 密碼驗證失敗。")
                 return {"success": False, "message": "帳號或密碼錯誤", "token": None}
+            print("結果: 密碼驗證成功。")
             
             # 3. 生成 Token
+            print("步驟 3: 正在生成 JWT Token...")
             token = create_access_token({"sub": str(user.id)})
-            
-            # 4. 更新登入 token（可選）
-            user.login_token = token
-            db.commit()
+            print("結果: Token 生成成功。")
+            print("--- [登入流程成功結束] ---")
             
             return {"success": True, "message": "登入成功", "token": token}
             
         except Exception as e:
-            print(f"登入錯誤: {str(e)}")
-            return {"success": False, "message": "登入失敗", "token": None}
+            print(f"登入流程中發生嚴重錯誤: {str(e)}")
+            db.rollback()  # 發生例外時回滾
+            return {"success": False, "message": f"登入失敗: {e}", "token": None}
     
     
     @staticmethod

@@ -69,10 +69,8 @@ class PasswordReset(BaseModel):
 
 
 class PasswordForgot(BaseModel):
-    """忘記密碼請求（透過驗證碼重設）"""
+    """忘記密碼請求（符合規格書）"""
     email: EmailStr = Field(..., description="電子郵件")
-    code: str = Field(..., description="驗證碼")
-    newPassword: str = Field(..., min_length=6, description="新密碼（至少6位）")
 
 
 class VerificationSend(BaseModel):
@@ -99,11 +97,15 @@ class RegisterResponse(BaseResponse):
     user_id: Optional[int] = Field(None, description="用戶 ID")
 
 
-class TokenResponse(BaseResponse):
-    """登入成功回應"""
+class TokenResponse(BaseModel):
+    """登入成功回應（符合規格書）"""
+    status: str = Field(..., description="狀態碼 (0:成功, 1:失敗)")
     token: Optional[str] = Field(None, description="JWT Token")
+    message: Optional[str] = Field(None, description="訊息（僅失敗時返回）")
 
 
-class VerificationSendResponse(BaseResponse):
-    """發送驗證碼成功回應"""
-    code: str = Field(..., description="六位數驗證碼")
+class VerificationSendResponse(BaseModel):
+    """發送驗證碼成功回應（符合規格書欄位順序）"""
+    status: str = Field(..., description="狀態碼 (0:成功, 1:失敗)")
+    code: Optional[str] = Field(None, description="六位數驗證碼")
+    message: str = Field(..., description="訊息")

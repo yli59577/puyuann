@@ -12,7 +12,9 @@ from datetime import datetime, timedelta
 # 載入環境變數
 load_dotenv()
 
-# 修正 ACCESS_TOKEN_EXPIRE_HOURS 未定義的問題
+# JWT 配置 - 必須在函數定義之前
+SECRET_KEY = "your_secret_key"
+ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 1  # 預設為 1 小時
 
 def hash_password(password: str) -> str:
@@ -47,8 +49,3 @@ def verify_token(token: str):
 def generate_verification_code() -> str:
     """生成6位數驗證碼"""
     return ''.join(random.choices(string.digits, k=6))
-
-
-
-SECRET_KEY = "your_secret_key"
-ALGORITHM = "HS256"

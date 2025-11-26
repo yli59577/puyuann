@@ -7,14 +7,11 @@ from typing import Optional
 import sys
 import os
 
-# 將當前目錄加入路徑以支援導入
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
 
-# 使用絕對導入
-import models as measurement_models
-import module as measurement_module
+
+# 使用相對導入
+from . import models as measurement_models
+from . import module as measurement_module
 
 # 導入需要的類別
 BloodPressureUpload = measurement_models.BloodPressureUpload
@@ -31,7 +28,7 @@ security = HTTPBearer()
 
 # ==================== 測量上傳 ====================
 
-@router.post("/api/user/blood/pressure/", response_model=UploadResponse, summary="上傳血壓測量結果", tags=["測量上傳"])
+@router.post("/blood/pressure/", response_model=UploadResponse, summary="上傳血壓測量結果", tags=["測量上傳"])
 def upload_blood_pressure(
     request: BloodPressureUpload,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -87,7 +84,7 @@ def upload_blood_pressure(
         return UploadResponse(status="1", message="上傳失敗", data=None)
 
 
-@router.post("/api/user/weight", response_model=UploadResponse, summary="上傳體重測量結果", tags=["測量上傳"])
+@router.post("/weight", response_model=UploadResponse, summary="上傳體重測量結果", tags=["測量上傳"])
 def upload_weight(
     request: WeightUpload,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -143,7 +140,7 @@ def upload_weight(
         return UploadResponse(status="1", message="上傳失敗", data=None)
 
 
-@router.post("/api/user/blood/sugar", response_model=UploadResponse, summary="上傳血糖測量結果", tags=["測量上傳"])
+@router.post("/blood/sugar", response_model=UploadResponse, summary="上傳血糖測量結果", tags=["測量上傳"])
 def upload_blood_sugar(
     request: BloodSugarUpload,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -196,7 +193,7 @@ def upload_blood_sugar(
         return UploadResponse(status="1", message="上傳失敗", data=None)
 
 
-@router.get("/api/user/last-upload", response_model=LastUploadResponse, summary="最後上傳時間", tags=["測量上傳"])
+@router.get("/last-upload", response_model=LastUploadResponse, summary="最後上傳時間", tags=["測量上傳"])
 def get_last_upload(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -227,7 +224,7 @@ def get_last_upload(
         return LastUploadResponse(status="0", message="尚無上傳記錄", last_upload_time=None)
 
 
-@router.post("/api/user/records", response_model=BaseResponse, summary="上傳一筆記錄", tags=["測量上傳"])
+@router.post("/records", response_model=BaseResponse, summary="上傳一筆記錄", tags=["測量上傳"])
 def upload_record(
     request: RecordUpload,
     credentials: HTTPAuthorizationCredentials = Depends(security),

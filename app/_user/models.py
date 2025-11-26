@@ -3,8 +3,8 @@ from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime
 from sqlalchemy.sql import func
 from app.core.database import Base
 from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime
+from typing import Optional, List
+from datetime import datetime, date
 
 # ==================== SQLAlchemy 資料庫模型 ====================
 
@@ -24,83 +24,114 @@ class UserProfile(Base):
     email = Column(String, unique=True, nullable=True)
     phone = Column(String, nullable=True)
     avatar = Column(String, nullable=True)
+    fb_id = Column(String, nullable=True)
+    google_id = Column(String, nullable=True)
+    apple_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
 
 class UserDefaults(Base):
     """用戶預設值表"""
     __tablename__ = "user_defaults"
-
+    
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(Integer, nullable=False, unique=True, index=True)
-    sugar_morning_max = Column(Integer, default=0)
-    sugar_morning_min = Column(Integer, default=0)
-    sugar_afternoon_max = Column(Integer, default=0)
-    sugar_afternoon_min = Column(Integer, default=0)
-    sugar_evening_max = Column(Integer, default=0)
-    sugar_evening_min = Column(Integer, default=0)
+    sugar_delta_min = Column(Float, nullable=True)
+    sugar_delta_max = Column(Float, nullable=True)
+    sugar_morning_min = Column(Float, nullable=True)
+    sugar_morning_max = Column(Float, nullable=True)
+    sugar_evening_min = Column(Float, nullable=True)
+    sugar_evening_max = Column(Float, nullable=True)
+    sugar_before_min = Column(Float, nullable=True)
+    sugar_before_max = Column(Float, nullable=True)
+    sugar_after_min = Column(Float, nullable=True)
+    sugar_after_max = Column(Float, nullable=True)
+    systolic_min = Column(Integer, nullable=True)
+    systolic_max = Column(Integer, nullable=True)
+    diastolic_min = Column(Integer, nullable=True)
+    diastolic_max = Column(Integer, nullable=True)
+    pulse_min = Column(Integer, nullable=True)
+    pulse_max = Column(Integer, nullable=True)
+    weight_min = Column(Float, nullable=True)
+    weight_max = Column(Float, nullable=True)
+    bmi_min = Column(Float, nullable=True)
+    bmi_max = Column(Float, nullable=True)
+    body_fat_min = Column(Float, nullable=True)
+    body_fat_max = Column(Float, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-
 class UserSettings(Base):
-    """用戶設定表"""
+    """用戶個人設定表"""
     __tablename__ = "user_settings"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(Integer, nullable=False, unique=True, index=True)
     after_recording = Column(Boolean, default=False)
     no_recording_for_a_day = Column(Boolean, default=False)
-    notification_enabled = Column(Boolean, default=True)
-    language = Column(String, default="zh-TW")
-    theme = Column(String, default="light")
+    over_max_or_under_min = Column(Boolean, default=False)
+    after_meal = Column(Boolean, default=False)
+    unit_of_sugar = Column(Boolean, default=False)
+    unit_of_weight = Column(Boolean, default=False)
+    unit_of_height = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-
-# ==================== Pydantic 請求模型 ====================
+# ==================== Pydantic 請求/回應模型 ====================
 
 class UserProfileUpdate(BaseModel):
-    """更新用戶個人資料請求"""
-    fcm_id: Optional[str] = Field(None, description="Firebase Cloud Messaging ID")
-    name: Optional[str] = Field(None, description="姓名")
-    birthday: Optional[str] = Field(None, description="生日 (YYYY-MM-DD)")
-    gender: Optional[int] = Field(None, ge=0, le=1, description="性別 (0:女, 1:男)")
-    address: Optional[str] = Field(None, description="地址")
-    weight: Optional[float] = Field(None, gt=0, description="體重 (kg)")
-    height: Optional[float] = Field(None, gt=0, description="身高 (cm)")
-    phone: Optional[str] = Field(None, description="電話")
-    avatar: Optional[str] = Field(None, description="頭像 URL")
-
-
-class UserDefaultsUpdate(BaseModel):
-    """更新用戶預設值請求"""
-    sugar_morning_max: Optional[int] = Field(None, description="早上血糖最大值")
-    sugar_morning_min: Optional[int] = Field(None, description="早上血糖最小值")
-    sugar_afternoon_max: Optional[int] = Field(None, description="下午血糖最大值")
-    sugar_afternoon_min: Optional[int] = Field(None, description="下午血糖最小值")
-    sugar_evening_max: Optional[int] = Field(None, description="晚上血糖最大值")
-    sugar_evening_min: Optional[int] = Field(None, description="晚上血糖最小值")
-
+    """更新個人資料的請求"""
+    name: Optional[str] = None
+    gender: Optional[int] = None
+    birthday: Optional[date] = None
+    height: Optional[float] = None
+    weight: Optional[float] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    avatar: Optional[str] = None
+    fcm_id: Optional[str] = None
 
 class UserSettingsUpdate(BaseModel):
-    """更新用戶設定請求"""
-    after_recording: Optional[bool] = Field(None, description="記錄後通知")
-    no_recording_for_a_day: Optional[bool] = Field(None, description="一天未記錄通知")
-    notification_enabled: Optional[bool] = Field(None, description="啟用通知")
-    language: Optional[str] = Field(None, description="語言")
-    theme: Optional[str] = Field(None, description="主題")
-
-
-# ==================== Pydantic 回應模型 ====================
+    """更新個人設定的請求"""
+    after_recording: Optional[bool] = None
+    no_recording_for_a_day: Optional[bool] = None
+    notification_enabled: Optional[bool] = Field(None, alias="over_max_or_under_min")
+    language: Optional[str] = None
+    theme: Optional[str] = None
 
 class BaseResponse(BaseModel):
     """基本回應"""
     status: str = Field(..., description="狀態碼 (0:成功, 1:失敗)")
-    message: str = Field(..., description="訊息")
+    message: Optional[str] = Field(None, description="回應訊息")
 
 
-class UserProfileResponse(BaseResponse):
-    """用戶資料回應"""
-    data: Optional[dict] = Field(None, description="用戶資料")
+class UserProfileData(BaseModel):
+    """用戶個人完整資料 (用於回應)"""
+    status: str = "0"
+    id: int
+    account: Optional[str] = ""
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+    name: Optional[str] = ""
+    group: Optional[str] = ""
+    gender: Optional[int] = 0
+    birthday: Optional[str] = ""
+    height: Optional[float] = 0.0
+    weight: Optional[float] = 0.0
+    fcm_id: Optional[str] = ""
+    address: Optional[str] = ""
+    avatar: Optional[str] = ""
+    fb_id: Optional[str] = ""
+    google_id: Optional[str] = ""
+    apple_id: Optional[str] = ""
+    unread_records: List = []
+
+    class Config:
+        from_attributes = True
+
+
+class UserProfileResponse(BaseModel):
+    """獲取個人資料的回應，包含在 'user' 鍵中"""
+    status: str = "0"
+    message: str = "成功"
+    user: Optional[UserProfileData] = None
