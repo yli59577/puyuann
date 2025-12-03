@@ -23,21 +23,45 @@ def update_user_profile(
     # 1. 解析 Token
     user_id = UserModule.parse_user_id_from_token(authorization)
     if not user_id:
-        return BaseResponse(status="1", message="身份驗證失敗")
+        return BaseResponse(status="1", message="authentication failed")
     
     # 2. 檢查用戶是否存在
     user = UserModule.get_user(db, user_id)
     if not user:
-        return BaseResponse(status="1", message="用戶不存在")
+        return BaseResponse(status="1", message="user not found")
     
     # 3. 更新資料
     update_data = request.dict(exclude_unset=True)
+    
+    # 處理空字串和類型轉換
+    if "birthday" in update_data:
+        if update_data["birthday"] == "" or update_data["birthday"] is None:
+            update_data["birthday"] = None
+    
+    if "height" in update_data:
+        if update_data["height"] == "" or update_data["height"] is None:
+            update_data["height"] = None
+        else:
+            try:
+                update_data["height"] = float(update_data["height"])
+            except (ValueError, TypeError):
+                update_data["height"] = None
+    
+    if "weight" in update_data:
+        if update_data["weight"] == "" or update_data["weight"] is None:
+            update_data["weight"] = None
+        else:
+            try:
+                update_data["weight"] = float(update_data["weight"])
+            except (ValueError, TypeError):
+                update_data["weight"] = None
+    
     success = UserModule.create_or_update_profile(db, user_id, update_data)
     
     if success:
-        return BaseResponse(status="0", message="更新成功")
+        return BaseResponse(status="0", message="success")
     else:
-        return BaseResponse(status="1", message="更新失敗")
+        return BaseResponse(status="1", message="failed")
 
 
 @router.get("", summary="獲取個人資料", tags=["個人資訊"])
@@ -54,12 +78,12 @@ def get_user_profile(
     # 1. 解析 Token
     user_id = UserModule.parse_user_id_from_token(authorization)
     if not user_id:
-        return {"status": "1", "message": "身份驗證失敗", "user": None}
+        return {"status": "1", "message": "authentication failed", "user": None}
     
     # 2. 獲取用戶完整資料
     user_data = UserModule.get_user_complete_data(db, user_id)
     if not user_data:
-        return {"status": "1", "message": "找不到用戶資料", "user": None}
+        return {"status": "1", "message": "user not found", "user": None}
         
     # 3. 按照 App 預期的格式回傳
     try:
@@ -70,7 +94,7 @@ def get_user_profile(
         
         final_response = {
             "status": "0",
-            "message": "成功",
+            "message": "success",
             "user": validated_user_data
         }
         print(f"API 最終回傳資料: {final_response}")
@@ -80,7 +104,7 @@ def get_user_profile(
         # 若驗證失敗，回傳帶有 status 的錯誤訊息，防止 App 崩潰
         return {
             "status": "1", 
-            "message": f"資料格式錯誤: {str(e)}", 
+            "message": f"data format error: {str(e)}", 
             "user": None
         }
 
@@ -101,21 +125,21 @@ def update_user_settings(
     # 1. 解析 Token
     user_id = UserModule.parse_user_id_from_token(authorization)
     if not user_id:
-        return BaseResponse(status="1", message="身份驗證失敗")
+        return BaseResponse(status="1", message="authentication failed")
     
     # 2. 檢查用戶是否存在
     user = UserModule.get_user(db, user_id)
     if not user:
-        return BaseResponse(status="1", message="用戶不存在")
+        return BaseResponse(status="1", message="user not found")
     
     # 3. 更新設定
     update_data = request.dict(exclude_unset=True)
     success = UserModule.create_or_update_settings(db, user_id, update_data)
     
     if success:
-        return BaseResponse(status="0", message="設定更新成功")
+        return BaseResponse(status="0", message="success")
     else:
-        return BaseResponse(status="1", message="設定更新失敗")
+        return BaseResponse(status="1", message="failed")
 
 
 @router.put("/badge", response_model=BaseResponse, summary="更新徽章", tags=["個人資訊"])
@@ -139,12 +163,12 @@ def update_user_badge(
     # 1. 解析 Token
     user_id = UserModule.parse_user_id_from_token(authorization)
     if not user_id:
-        return BaseResponse(status="1", message="身份驗證失敗")
+        return BaseResponse(status="1", message="authentication failed")
     
     # 2. 檢查用戶是否存在
     user = UserModule.get_user(db, user_id)
     if not user:
-        return BaseResponse(status="1", message="用戶不存在")
+        return BaseResponse(status="1", message="user not found")
     
     # 3. 更新徽章 (這裡簡化處理,實際應該根據業務邏輯計算)
     try:
@@ -152,6 +176,6 @@ def update_user_badge(
         # - 查詢用戶記錄天數
         # - 檢查血糖控制情況
         # - 統計分享次數等
-        return BaseResponse(status="0", message="徽章更新成功")
+        return BaseResponse(status="0", message="success")
     except Exception as e:
-        return BaseResponse(status="1", message=f"徽章更新失敗: {str(e)}")
+        return BaseResponse(status="1", message=f"failed: {str(e)}")

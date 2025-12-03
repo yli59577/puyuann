@@ -65,7 +65,7 @@ app.add_middleware(
 
 # 包含路由
 app.include_router(account_router, prefix='/api', tags=['用戶身份'])
-app.include_router(account_router, prefix='/api/account', include_in_schema=False) # 為了兼容舊版 APP
+# # app.include_router(account_router, prefix='/api/account', include_in_schema=False) # 為了兼容舊版 APP
 app.include_router(user_router, prefix='/api/user', tags=['個人資訊'])
 app.include_router(measurement_router, prefix='/api/user', tags=['測量上傳'])
 app.include_router(journal_router, prefix='/api/user', tags=['日記'])
