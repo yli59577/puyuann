@@ -23,7 +23,7 @@ def register_user(
     用戶註冊（使用 Request Body）
     
     - **email**: 電子郵件（唯一）
-    - **password**: 密碼（至少6位）
+    - **password**: 密碼（至少6位）`
     - **code**: 驗證碼（可選）
     
     ### 範例請求：
@@ -75,31 +75,34 @@ def check_register(email: str, db: Session = Depends(get_db)):
     - **email**: 電子郵件（Query Parameter）
     
     ### Response 說明：
-    - **status**: "0" = 帳號已註冊, "1" = 帳號不存在
-    - **message**: 訊息（帳號已註冊/帳號已註冊但未驗證/帳號不存在）
+    - **status**: "0" = 帳號不存在（可以註冊）
+    - **status**: "1" = 帳號已存在（不能註冊）
+    - **message**: 訊息
     
-    ### 成功範例：
+    ### 可以註冊：
     ```json
     {
         "status": "0",
-        "message": "帳號已註冊"
+        "message": "成功"
     }
     ```
     
-    ### 失敗範例：
+    ### 帳號已存在：
     ```json
     {
         "status": "1",
-        "message": "帳號不存在"
+        "message": "失敗"
     }
     ```
     """
     result = AccountModule.check_register_status(db, email)
     
     if result["exists"]:
-        return BaseResponse(status="0", message=result["message"])
+        # 帳號已存在，不能註冊
+        return BaseResponse(status="1", message="失敗")
     else:
-        return BaseResponse(status="1", message=result["message"])
+        # 帳號不存在，可以註冊
+        return BaseResponse(status="0", message="成功")
 
 
 @router.post("/auth", summary="用戶登入", tags=["用戶身份"])
@@ -298,6 +301,18 @@ def send_verification(request: VerificationSend, db: Session = Depends(get_db)):
     ```
     """
     result = AccountModule.send_verification_code(db, request.email)
+    
+    if result["success"]:
+        return VerificationSendResponse(
+            status="0",
+            code=result["code"],
+            message="成功"
+        )
+    else:
+        return VerificationSendResponse(
+            status="1",
+            message="失敗"
+        )
     
     if result["success"]:
         return VerificationSendResponse(

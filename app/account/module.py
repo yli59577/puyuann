@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from sqlalchemy.orm import Session
-from app.account.models import User
+from app.account.models import User, VerificationCodeDB
 from app._user.models import UserProfile  # 導入 UserProfile 模型
 from app.core.security import hash_password, verify_password, create_access_token
 from typing import Optional, Dict
@@ -39,36 +39,39 @@ class AccountModule:
             # 2. 密碼加密
             hashed_pwd = hash_password(password)
             
-            # 3. 創建新用戶 (UserAuth)
+            # 3. 創建新用戶 (UserAuth) - 預設未驗證
             new_user = User(
                 email=email,
                 password=hashed_pwd,
                 account=email.split('@')[0],
-                verified=False # 根據業務邏輯，新註冊用戶應為未驗證
+                verified=False  # 需要驗證碼驗證後才能登入
             )
             db.add(new_user)
             
             # 為了獲取 new_user.id，我們需要先 flush 到資料庫
             db.flush()
 
-            # 4. 創建對應的用戶資料 (user_profiles)
-            # 注意：規格書中沒有 invitCode 和 badge，這裡不再添加
-            new_profile = UserProfile(
-                user_id=new_user.id,
-                name=email.split('@')[0] # 預設名字為帳號
-            )
-            db.add(new_profile)
+            # 4. 檢查是否已有 user_profiles，沒有才創建
+            existing_profile = db.query(UserProfile).filter(
+                UserProfile.user_id == new_user.id
+            ).first()
+            
+            if not existing_profile:
+                new_profile = UserProfile(
+                    user_id=new_user.id,
+                    name=email.split('@')[0]
+                )
+                db.add(new_profile)
             
             # 5. 提交交易
             db.commit()
             db.refresh(new_user)
-            db.refresh(new_profile)
             
             return {"success": True, "message": "註冊成功", "user_id": new_user.id}
             
         except Exception as e:
             print(f"註冊時發生錯誤: {str(e)}")
-            db.rollback() # 如果發生任何錯誤，回滾所有操作
+            db.rollback()
             return {"success": False, "message": f"註冊失敗: {e}", "user_id": None}
     
     
@@ -90,15 +93,22 @@ class AccountModule:
                 return {"success": False, "message": "帳號或密碼錯誤", "token": None}
             print("結果: 已找到用戶。")
             
-            # 2. 驗證密碼
-            print("步驟 2: 正在驗證密碼...")
+            # 2. 檢查是否已驗證
+            print("步驟 2: 檢查帳號是否已驗證...")
+            if not user.verified:
+                print("結果: 帳號尚未驗證。")
+                return {"success": False, "message": "帳號尚未驗證", "token": None}
+            print("結果: 帳號已驗證。")
+            
+            # 3. 驗證密碼
+            print("步驟 3: 正在驗證密碼...")
             if not verify_password(password, user.password):
                 print("結果: 密碼驗證失敗。")
                 return {"success": False, "message": "帳號或密碼錯誤", "token": None}
             print("結果: 密碼驗證成功。")
             
-            # 3. 生成 Token
-            print("步驟 3: 正在生成 JWT Token...")
+            # 4. 生成 Token
+            print("步驟 4: 正在生成 JWT Token...")
             token = create_access_token({"sub": str(user.id)})
             print("結果: Token 生成成功。")
             print("--- [登入流程成功結束] ---")
@@ -215,7 +225,7 @@ class AccountModule:
     @staticmethod
     def send_verification_code(db: Session, email: str) -> Dict[str, any]:
         """
-        發送驗證碼（真的發送到 Gmail）
+        發送驗證碼 - 直接存到 UserAuth.code 欄位
         
         Returns:
             {"success": bool, "message": str, "code": str}
@@ -224,32 +234,37 @@ class AccountModule:
             # 1. 生成驗證碼
             code = AccountModule.generate_code()
             
-            # 2. 設定過期時間（10分鐘）
-            expires_at = datetime.now() + timedelta(minutes=10)
+            # 2. 查詢用戶，將驗證碼存到 UserAuth.code
+            user = AccountModule.get_user_by_email(db, email)
+            if user:
+                # 用戶已存在，更新 code
+                user.code = code
+            else:
+                # 用戶不存在，先創建一個未完成註冊的用戶記錄
+                # 或者只是暫存驗證碼（這裡選擇存到 verification_codes 表作為備用）
+                verification = VerificationCodeDB(
+                    email=email,
+                    code=code,
+                    expires_at=datetime.now() + timedelta(minutes=10),
+                    is_used=False
+                )
+                db.add(verification)
             
-            # 3. 儲存到資料庫
-            verification = VerificationCodeDB(
-                email=email,
-                code=code,
-                expires_at=expires_at,
-                is_used=False
-            )
-            db.add(verification)
             db.commit()
             
-            # 4. 🆕 真的發送郵件到 Gmail
+            print(f"[驗證碼] 已生成並儲存: email={email}, code={code}")
+            
+            # 發送郵件
             from app.core.email_config import EmailService
             email_sent = EmailService.send_verification_code(email, code)
-            
             if not email_sent:
-                # 郵件發送失敗，但驗證碼已儲存（開發環境可用）
-                print(f"⚠️ [驗證碼] 郵件發送失敗，但驗證碼已生成: {code}")
+                print(f"[驗證碼] 郵件發送失敗，但驗證碼已儲存: {code}")
             
             # 根據規格書，Response 中要顯示驗證碼
             return {"success": True, "message": "成功", "code": code}
             
         except Exception as e:
-            print(f"❌ [驗證碼] 發送失敗: {str(e)}")
+            print(f"[驗證碼] 發送失敗: {str(e)}")
             db.rollback()
             return {"success": False, "message": "失敗", "code": None}
     
@@ -257,13 +272,23 @@ class AccountModule:
     @staticmethod
     def verify_code(db: Session, email: str, code: str) -> bool:
         """
-        驗證驗證碼（符合規格書）
+        驗證驗證碼 - 優先檢查 UserAuth.code，備用檢查 verification_codes 表
         
         Returns:
             True = 驗證成功, False = 驗證失敗
         """
         try:
-            # 1. 查詢驗證碼（最新的一筆）
+            # 1. 優先檢查 UserAuth.code
+            user = AccountModule.get_user_by_email(db, email)
+            if user and user.code == code:
+                # 驗證成功，清除 code 並標記為已驗證
+                user.code = None
+                user.verified = True
+                db.commit()
+                print(f"[驗證成功] 使用 UserAuth.code - Email: {email}")
+                return True
+            
+            # 2. 備用：檢查 verification_codes 表（用於尚未註冊的用戶）
             verification = db.query(VerificationCodeDB).filter(
                 VerificationCodeDB.email == email,
                 VerificationCodeDB.code == code,
@@ -274,22 +299,21 @@ class AccountModule:
                 print(f"[驗證失敗] 驗證碼不存在或已使用 - Email: {email}, Code: {code}")
                 return False
             
-            # 2. 檢查是否過期
+            # 3. 檢查是否過期
             if verification.expires_at and datetime.now() > verification.expires_at:
                 print(f"[驗證失敗] 驗證碼已過期 - Email: {email}, Code: {code}")
                 return False
             
-            # 3. 標記為已使用
+            # 4. 標記為已使用
             verification.is_used = True
             
-            # 4. 將用戶標記為已驗證
-            user = AccountModule.get_user_by_email(db, email)
+            # 5. 如果用戶存在，標記為已驗證
             if user:
                 user.verified = True
             
             db.commit()
             
-            print(f"[驗證成功] Email: {email}, Code: {code}, 用戶已驗證")
+            print(f"[驗證成功] 使用 verification_codes 表 - Email: {email}")
             return True
             
         except Exception as e:
