@@ -10,8 +10,8 @@ from datetime import datetime, timezone, timedelta
 TAIWAN_TZ = timezone(timedelta(hours=8))
 
 def get_taiwan_time():
-    """取得台灣時間 (UTC+8)，去除時區資訊儲存到資料庫"""
-    return datetime.now(TAIWAN_TZ).replace(tzinfo=None)
+    """取得台灣時間 (UTC+8)，精確到秒，去除時區資訊儲存到資料庫"""
+    return datetime.now(TAIWAN_TZ).replace(tzinfo=None, microsecond=0)
 
 
 # ==================== SQLAlchemy 資料庫模型 ====================
@@ -29,9 +29,15 @@ class User(Base):
     verified = Column(Boolean, default=False)
     privacy_policy = Column(Boolean, default=False)
     must_change_password = Column(Boolean, default=False)
+    fcm_id = Column(String, nullable=True)
+    fb_id = Column(String, nullable=True)
+    google_id = Column(String, nullable=True)
+    apple_id = Column(String, nullable=True)
+    login_times = Column(Integer, default=0)
     login_token = Column(String, nullable=True)
     password_reset_token = Column(String, nullable=True)
     token_expire_at = Column(DateTime, nullable=True)
+    verification_expires_at = Column(DateTime, nullable=True)  # 驗證過期時間（5分鐘後）
     created_at = Column(DateTime, default=get_taiwan_time)
     updated_at = Column(DateTime, default=get_taiwan_time, onupdate=get_taiwan_time)
 
@@ -63,9 +69,8 @@ class UserLogin(BaseModel):
 
 
 class PasswordReset(BaseModel):
-    """重設密碼請求（需要舊密碼）"""
-    oldPassword: str = Field(..., description="舊密碼")
-    newPassword: str = Field(..., min_length=6, description="新密碼（至少6位）")
+    """重設密碼請求（只需要新密碼）"""
+    password: str = Field(..., min_length=6, description="新密碼（至少6位）")
 
 
 class PasswordForgot(BaseModel):
@@ -109,3 +114,8 @@ class VerificationSendResponse(BaseModel):
     status: str = Field(..., description="狀態碼 (0:成功, 1:失敗)")
     code: Optional[str] = Field(None, description="六位數驗證碼")
     message: str = Field(..., description="訊息")
+
+
+class CheckRegisterResponse(BaseModel):
+    """檢查帳號是否可以註冊的回應"""
+    available: bool = Field(..., description="帳號是否可用 (true:可以註冊, false:已存在)")

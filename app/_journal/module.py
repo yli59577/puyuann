@@ -5,6 +5,9 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from app.core.security import verify_token
 import json
+from common.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class JournalModule:
@@ -14,30 +17,28 @@ class JournalModule:
     def parse_user_id_from_token(authorization: str) -> Optional[int]:
         '''從 Authorization Header 解析用戶 ID'''
         try:
-            print(f'[DEBUG] 收到的 authorization: {authorization[:50] if authorization else "None"}...')
+            logger.debug(f'收到的 authorization: {authorization[:50] if authorization else "None"}...')
             
             if not authorization or not authorization.startswith('Bearer '):
-                print('[DEBUG] authorization 格式錯誤或為空')
+                logger.debug('authorization 格式錯誤或為空')
                 return None
             
             token = authorization.split(' ')[1]
-            print(f'[DEBUG] 解析出的 token: {token[:30]}...')
+            logger.debug(f'解析出的 token: {token[:30]}...')
             
             payload = verify_token(token)
-            print(f'[DEBUG] verify_token 回傳: {payload}')
+            logger.debug(f'verify_token 回傳: {payload}')
             
             if not payload:
-                print('[DEBUG] payload 為空')
+                logger.debug('payload 為空')
                 return None
             
             user_id = int(payload.get('sub'))
-            print(f'[DEBUG] 解析出的 user_id: {user_id}')
+            logger.debug(f'解析出的 user_id: {user_id}')
             return user_id
             
         except Exception as e:
-            print(f'[DEBUG] parse_user_id_from_token 錯誤: {str(e)}')
-            import traceback
-            traceback.print_exc()
+            logger.error(f'parse_user_id_from_token 錯誤: {str(e)}', exc_info=True)
             return None
     
     @staticmethod
@@ -49,7 +50,7 @@ class JournalModule:
     def get_diary_list(db: Session, user_id: int, date: str) -> List[Dict[str, Any]]:
         '''獲取指定日期的日記列表'''
         try:
-            print(f'[DEBUG] 開始查詢日記列表: user_id={user_id}, date={date}')
+            logger.debug(f'開始查詢日記列表: user_id={user_id}, date={date}')
             
             # 使用 sqlite3 直接查詢,避免導入問題
             import sqlite3
@@ -58,7 +59,7 @@ class JournalModule:
             
             # 解析日期範圍
             target_date = datetime.strptime(date, '%Y-%m-%d').date()
-            print(f'[DEBUG] 解析後的日期: {target_date}')
+            logger.debug(f'解析後的日期: {target_date}')
             
             # 連接資料庫
             conn = sqlite3.connect('Puyuan.db')
@@ -72,11 +73,11 @@ class JournalModule:
                 GROUP BY DATE(measured_at)
             """, (user_id,))
             available_dates = cursor.fetchall()
-            print(f'[DEBUG] 用戶 {user_id} 的血壓記錄日期: {available_dates}')
+            logger.debug(f'用戶 {user_id} 的血壓記錄日期: {available_dates}')
             
             # 查詢血壓記錄
             query_date = str(target_date)
-            print(f'[DEBUG] 查詢日期字串: {query_date}')
+            logger.debug(f'查詢日期字串: {query_date}')
             
             cursor.execute("""
                 SELECT id, user_id, systolic, diastolic, pulse, measured_at
@@ -85,31 +86,31 @@ class JournalModule:
             """, (user_id, query_date))
             
             blood_pressure_records = cursor.fetchall()
-            print(f'[DEBUG] 查詢到 {len(blood_pressure_records)} 筆血壓記錄')
+            logger.debug(f'查詢到 {len(blood_pressure_records)} 筆血壓記錄')
             if blood_pressure_records:
-                print(f'[DEBUG] 第一筆血壓記錄: {blood_pressure_records[0]}')
+                logger.debug(f'第一筆血壓記錄: {blood_pressure_records[0]}')
             
             for record in blood_pressure_records:
                 diary_list.append({
-                    'id': record[0],
-                    'user_id': record[1],
-                    'systolic': record[2],
-                    'diastolic': record[3],
-                    'pulse': record[4],
+                    'id': int(record[0]) if record[0] else 0,
+                    'user_id': int(record[1]) if record[1] else 0,
+                    'systolic': int(record[2]) if record[2] else 0,
+                    'diastolic': int(record[3]) if record[3] else 0,
+                    'pulse': int(record[4]) if record[4] else 0,
                     'weight': 0.0,
                     'body_fat': 0.0,
                     'bmi': 0.0,
-                    'sugar': 0,
+                    'sugar': 0.0,
                     'exercise': 0,
                     'drug': 0,
                     'timeperiod': 0,
                     'description': '',
-                    'meal': None,
+                    'meal': 0,
                     'tag': [],
                     'image': [],
-                    'location': None,
+                    'location': {'lat': '0', 'lng': '0'},
                     'reply': '',
-                    'recorded_at': record[5],
+                    'recorded_at': str(record[5]) if record[5] else '',
                     'type': 'blood_pressure'
                 })
             
@@ -121,67 +122,67 @@ class JournalModule:
             """, (user_id, query_date))
             
             weight_records = cursor.fetchall()
-            print(f'[DEBUG] 查詢到 {len(weight_records)} 筆體重記錄')
+            logger.debug(f'查詢到 {len(weight_records)} 筆體重記錄')
             if weight_records:
-                print(f'[DEBUG] 第一筆體重記錄: {weight_records[0]}')
+                logger.debug(f'第一筆體重記錄: {weight_records[0]}')
             
             for record in weight_records:
                 diary_list.append({
-                    'id': record[0],
-                    'user_id': record[1],
+                    'id': int(record[0]) if record[0] else 0,
+                    'user_id': int(record[1]) if record[1] else 0,
                     'systolic': 0,
                     'diastolic': 0,
                     'pulse': 0,
-                    'weight': record[2],
-                    'body_fat': record[4] or 0.0,
-                    'bmi': record[3] or 0.0,
-                    'sugar': 0,
+                    'weight': float(record[2]) if record[2] else 0.0,
+                    'body_fat': float(record[4]) if record[4] else 0.0,
+                    'bmi': float(record[3]) if record[3] else 0.0,
+                    'sugar': 0.0,
                     'exercise': 0,
                     'drug': 0,
                     'timeperiod': 0,
                     'description': '',
-                    'meal': None,
+                    'meal': 0,
                     'tag': [],
                     'image': [],
-                    'location': None,
+                    'location': {'lat': '0', 'lng': '0'},
                     'reply': '',
-                    'recorded_at': record[5],
+                    'recorded_at': str(record[5]) if record[5] else '',
                     'type': 'weight'
                 })
             
             # 查詢血糖記錄
             cursor.execute("""
-                SELECT id, user_id, sugar_level, meal_time, measured_at
+                SELECT id, user_id, glucose, meal_time, measured_at
                 FROM blood_sugar_records
                 WHERE user_id = ? AND DATE(measured_at) = ?
             """, (user_id, query_date))
             
             blood_sugar_records = cursor.fetchall()
-            print(f'[DEBUG] 查詢到 {len(blood_sugar_records)} 筆血糖記錄')
+            logger.debug(f'查詢到 {len(blood_sugar_records)} 筆血糖記錄')
             if blood_sugar_records:
-                print(f'[DEBUG] 第一筆血糖記錄: {blood_sugar_records[0]}')
+                logger.debug(f'第一筆血糖記錄: {blood_sugar_records[0]}')
             
             for record in blood_sugar_records:
                 diary_list.append({
-                    'id': record[0],
-                    'user_id': record[1],
+                    'id': int(record[0]) if record[0] else 0,
+                    'user_id': int(record[1]) if record[1] else 0,
                     'systolic': 0,
                     'diastolic': 0,
                     'pulse': 0,
                     'weight': 0.0,
                     'body_fat': 0.0,
                     'bmi': 0.0,
-                    'sugar': record[2],
+                    'sugar': float(record[2]) if record[2] else 0.0,
                     'exercise': 0,
                     'drug': 0,
-                    'timeperiod': record[3],
+                    'timeperiod': int(record[3]) if record[3] else 0,
                     'description': '',
-                    'meal': None,
+                    'meal': 0,
                     'tag': [],
                     'image': [],
-                    'location': None,
+                    'location': {'lat': '0', 'lng': '0'},
                     'reply': '',
-                    'recorded_at': record[4],
+                    'recorded_at': str(record[4]) if record[4] else '',
                     'type': 'blood_sugar'
                 })
             
@@ -194,7 +195,7 @@ class JournalModule:
             """, (user_id,))
             
             diet_records = cursor.fetchall()
-            print(f'[DEBUG] 查詢到 {len(diet_records)} 筆飲食記錄(未過濾)')
+            logger.debug(f'查詢到 {len(diet_records)} 筆飲食記錄(未過濾)')
             
             # 在 Python 中過濾符合日期的記錄
             filtered_diet_records = []
@@ -222,11 +223,11 @@ class JournalModule:
                 if match:
                     filtered_diet_records.append(record)
             
-            print(f'[DEBUG] 過濾後符合日期 {query_date} 的飲食記錄: {len(filtered_diet_records)} 筆')
+            logger.debug(f'過濾後符合日期 {query_date} 的飲食記錄: {len(filtered_diet_records)} 筆')
             
             for record in filtered_diet_records:
-                # 處理 None 的 id (使用 user_id 和時間戳生成臨時 ID)
-                record_id = record[0] if record[0] else f"temp_{record[1]}_{record[9]}"
+                # 處理 None 的 id - Swift 期望 Int，所以用 0 代替
+                record_id = record[0] if record[0] else 0
                 
                 # 解析 tag (JSON 格式)
                 try:
@@ -241,44 +242,43 @@ class JournalModule:
                 except:
                     images = []
                 
-                # 解析 location
-                location = None
+                # 解析 location - Swift 期望 Dictionary，不能是 null
                 if record[6] and record[7]:
                     location = {'lat': str(record[6]), 'lng': str(record[7])}
+                else:
+                    location = {'lat': '0', 'lng': '0'}
                 
                 diary_list.append({
-                    'id': record_id,  # 使用處理過的 id
-                    'user_id': record[1],
+                    'id': int(record_id) if record_id else 0,  # Swift 期望 Int
+                    'user_id': int(record[1]) if record[1] else 0,
                     'systolic': 0,
                     'diastolic': 0,
                     'pulse': 0,
                     'weight': 0.0,
                     'body_fat': 0.0,
                     'bmi': 0.0,
-                    'sugar': 0,
+                    'sugar': 0.0,
                     'exercise': 0,
                     'drug': 0,
                     'timeperiod': 0,
-                    'description': str(record[2]),
-                    'meal': record[3],
+                    'description': str(record[2]) if record[2] else '',
+                    'meal': int(record[3]) if record[3] else 0,
                     'tag': tag_list,
                     'image': images,
                     'location': location,
                     'reply': '',
-                    'recorded_at': record[8],
+                    'recorded_at': str(record[8]) if record[8] else '',
                     'type': 'diet'
                 })
             
             # 關閉資料庫連接
             conn.close()
             
-            print(f'[DEBUG] 總共查詢到 {len(diary_list)} 筆日記記錄')
+            logger.debug(f'總共查詢到 {len(diary_list)} 筆日記記錄')
             return diary_list
             
         except Exception as e:
-            print(f'獲取日記列表錯誤: {str(e)}')
-            import traceback
-            traceback.print_exc()
+            logger.error(f'獲取日記列表錯誤: {str(e)}', exc_info=True)
             return []
     
     @staticmethod
@@ -315,9 +315,7 @@ class JournalModule:
             return True
             
         except Exception as e:
-            print(f'上傳飲食日記錯誤: {str(e)}')
-            import traceback
-            traceback.print_exc()
+            logger.error(f'上傳飲食日記錯誤: {str(e)}', exc_info=True)
             return False
     
     @staticmethod
@@ -328,7 +326,7 @@ class JournalModule:
     ) -> bool:
         '''刪除日記記錄'''
         try:
-            from app.Measurement_upload.models import (
+            from app.measurement.models import (
                 BloodPressureRecord,
                 WeightRecord,
                 BloodSugarRecord
@@ -383,9 +381,7 @@ class JournalModule:
             return True
             
         except Exception as e:
-            print(f'刪除記錄錯誤: {str(e)}')
-            import traceback
-            traceback.print_exc()
+            logger.error(f'刪除記錄錯誤: {str(e)}', exc_info=True)
             db.rollback()
             return False
 

@@ -7,7 +7,9 @@ from datetime import datetime
 from .models import CareMessageUpload, CareRecord
 import sys
 import os
+from common.utils import get_logger
 
+logger = get_logger(__name__)
 # 加入 core 資料夾路徑
 core_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'core')
 sys.path.insert(0, core_path)
@@ -42,7 +44,7 @@ class CareModule:
             return user_id
             
         except Exception as e:
-            print(f'[Care] parse_user_id_from_token 錯誤: {str(e)}')
+            logger.error(f'parse_user_id_from_token 錯誤: {str(e)}', exc_info=True)
             return None
     
     def get_db_connection(self):
@@ -66,7 +68,7 @@ class CareModule:
         
         try:
             cursor.execute(
-                """SELECT * FROM care_info 
+                """SELECT * FROM UserCare 
                    WHERE user_id = ? 
                    ORDER BY created_at DESC""",
                 (user_id,)
@@ -107,7 +109,7 @@ class CareModule:
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
             cursor.execute(
-                """INSERT INTO care_info 
+                """INSERT INTO UserCare 
                    (user_id, message, created_at, updated_at)
                    VALUES (?, ?, ?, ?)""",
                 (user_id, data.message, now, now)
@@ -117,7 +119,7 @@ class CareModule:
             record_id = cursor.lastrowid
             
             # 獲取並返回創建的記錄
-            cursor.execute("SELECT * FROM care_info WHERE id = ?", (record_id,))
+            cursor.execute("SELECT * FROM UserCare WHERE id = ?", (record_id,))
             row = cursor.fetchone()
             
             return CareRecord(

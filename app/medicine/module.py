@@ -5,6 +5,9 @@ import sqlite3
 from typing import List, Optional
 from datetime import datetime
 from .models import MedicalInfoUpdate, DrugUsedUpload, DrugUsedDeleteRequest, MedicalInfo, DrugUsedRecord
+from common.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class MedicineModule:
@@ -45,7 +48,7 @@ class MedicineModule:
                 )
             return None
         except Exception as e:
-            print(f"get_medical_info error: {e}")
+            logger.error(f"get_medical_info error: {e}", exc_info=True)
             return None
         finally:
             conn.close()
@@ -83,7 +86,7 @@ class MedicineModule:
             conn.commit()
             return True
         except Exception as e:
-            print(f"update_medical_info error: {e}")
+            logger.error(f"update_medical_info error: {e}", exc_info=True)
             return False
         finally:
             conn.close()
@@ -114,7 +117,7 @@ class MedicineModule:
                 for row in rows
             ]
         except Exception as e:
-            print(f"get_drug_used_list error: {e}")
+            logger.error(f"get_drug_used_list error: {e}", exc_info=True)
             return []
         finally:
             conn.close()
@@ -136,7 +139,7 @@ class MedicineModule:
             conn.commit()
             return True
         except Exception as e:
-            print(f"upload_drug_used error: {e}")
+            logger.error(f"upload_drug_used error: {e}", exc_info=True)
             return False
         finally:
             conn.close()
@@ -157,7 +160,7 @@ class MedicineModule:
             conn.commit()
             return True
         except Exception as e:
-            print(f"delete_drug_used_records error: {e}")
+            logger.error(f"delete_drug_used_records error: {e}", exc_info=True)
             return False
         finally:
             conn.close()

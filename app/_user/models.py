@@ -4,13 +4,20 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Union, Any
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
+
+# 定義台灣時區 UTC+8
+TAIWAN_TZ = timezone(timedelta(hours=8))
+
+def get_taiwan_time():
+    """取得台灣時間 (UTC+8)，精確到秒，去除時區資訊儲存到資料庫"""
+    return datetime.now(TAIWAN_TZ).replace(tzinfo=None, microsecond=0)
 
 # ==================== SQLAlchemy 資料庫模型 ====================
 
 class UserProfile(Base):
     """用戶個人資料表"""
-    __tablename__ = "user_profiles"
+    __tablename__ = "UserProfile"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(Integer, nullable=False, unique=True, index=True)
@@ -21,14 +28,16 @@ class UserProfile(Base):
     address = Column(String, nullable=True)
     weight = Column(Float, nullable=True)
     height = Column(Float, nullable=True)
+    phone = Column(String, nullable=True)
+    avatar = Column(String, nullable=True)
     invite_code = Column(String, nullable=True)
     badge = Column(Integer, default=0)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=get_taiwan_time)
+    updated_at = Column(DateTime, default=get_taiwan_time, onupdate=get_taiwan_time)
 
 class UserDefaults(Base):
     """用戶預設值表"""
-    __tablename__ = "user_defaults"
+    __tablename__ = "UserDefaults"
     
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(Integer, nullable=False, unique=True, index=True)
@@ -54,12 +63,12 @@ class UserDefaults(Base):
     bmi_max = Column(Float, nullable=True)
     body_fat_min = Column(Float, nullable=True)
     body_fat_max = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=get_taiwan_time)
+    updated_at = Column(DateTime, default=get_taiwan_time, onupdate=get_taiwan_time)
 
 class UserSettings(Base):
     """用戶個人設定表"""
-    __tablename__ = "user_settings"
+    __tablename__ = "UserSettings"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(Integer, nullable=False, unique=True, index=True)
@@ -70,10 +79,25 @@ class UserSettings(Base):
     unit_of_sugar = Column(Boolean, default=False)
     unit_of_weight = Column(Boolean, default=False)
     unit_of_height = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=get_taiwan_time)
+    updated_at = Column(DateTime, default=get_taiwan_time, onupdate=get_taiwan_time)
 
 # ==================== Pydantic 資料驗證模型 ====================
+
+class UserProfileSimple(BaseModel):
+    """API 回應的用戶個人資料 - 符合規格書"""
+    id: int
+    name: Optional[str] = ""
+    birthday: Optional[str] = ""
+    height: Optional[float] = 0.0
+    weight: Optional[float] = 0.0
+    gender: Optional[int] = 0
+    address: Optional[str] = ""
+    invite_code: Optional[str] = ""
+    badge: int = 0
+    created_at: Optional[str] = ""
+    updated_at: Optional[str] = ""
+
 
 class UserProfileData(BaseModel):
     """API 回應的用戶完整資料結構 - 根據規格書與前端需求調整"""

@@ -42,26 +42,26 @@ class DietUploadResponse(BaseResponse):
 
 class DiaryRecord(BaseModel):
     """日記記錄"""
-    id: Any  # 可以是 int 或 str,因為飲食記錄使用 UUID 字串
-    user_id: int
-    systolic: Optional[int] = 0
-    diastolic: Optional[int] = 0
-    pulse: Optional[int] = 0
-    weight: Optional[float] = 0.0
-    body_fat: Optional[float] = 0.0
-    bmi: Optional[float] = 0.0
-    sugar: Optional[float] = 0.0  # 改為 float 以符合規格書
-    exercise: Optional[int] = 0
-    drug: Optional[int] = 0
-    timeperiod: Optional[int] = 0
-    description: Optional[str] = ""
-    meal: Optional[int] = None
-    tag: Optional[List[Dict[str, Any]]] = []
-    image: Optional[List[str]] = []
-    location: Optional[Dict[str, str]] = None
-    reply: Optional[str] = ""
-    recorded_at: str
-    type: str  # blood_pressure, blood_sugar, weight, diet
+    id: int = 0  # Swift 期望 Int，不能是 null
+    user_id: int = 0
+    systolic: int = 0
+    diastolic: int = 0
+    pulse: int = 0
+    weight: float = 0.0
+    body_fat: float = 0.0
+    bmi: float = 0.0
+    sugar: float = 0.0
+    exercise: int = 0
+    drug: int = 0
+    timeperiod: int = 0
+    description: str = ""
+    meal: int = 0  # Swift 期望 Int，不能是 null
+    tag: List[Dict[str, Any]] = []
+    image: List[str] = []
+    location: Dict[str, str] = {"lat": "0", "lng": "0"}  # Swift 期望 Dictionary，不能是 null
+    reply: str = ""
+    recorded_at: str = ""
+    type: str = ""  # blood_pressure, blood_sugar, weight, diet
 
     class Config:
         from_attributes = True

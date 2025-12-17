@@ -4,6 +4,10 @@ from app.account.models import User
 from datetime import datetime
 from typing import Optional
 from app.core.security import verify_token
+from .models import BloodPressureRecord, WeightRecord, BloodSugarRecord, MeasurementRecord
+from common.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class MeasurementModule:
@@ -39,9 +43,6 @@ class MeasurementModule:
     ) -> Optional[int]:
         '''上傳血壓測量結果'''
         try:
-            import models
-            BloodPressureRecord = models.BloodPressureRecord
-            
             # 解析測量時間
             measured_time = datetime.fromisoformat(measured_at.replace('Z', '+00:00'))
             
@@ -56,9 +57,10 @@ class MeasurementModule:
             db.add(record)
             db.commit()
             db.refresh(record)
+            logger.info(f'血壓記錄已儲存: id={record.id}, user_id={user_id}')
             return record.id
         except Exception as e:
-            print(f'上傳血壓記錄錯誤: {str(e)}')
+            logger.error(f'上傳血壓記錄錯誤: {str(e)}', exc_info=True)
             db.rollback()
             return None
     
@@ -73,9 +75,6 @@ class MeasurementModule:
     ) -> Optional[int]:
         '''上傳體重測量結果'''
         try:
-            import models
-            WeightRecord = models.WeightRecord
-            
             # 解析測量時間
             measured_time = datetime.fromisoformat(measured_at.replace('Z', '+00:00'))
             
@@ -90,9 +89,10 @@ class MeasurementModule:
             db.add(record)
             db.commit()
             db.refresh(record)
+            logger.info(f'體重記錄已儲存: id={record.id}, user_id={user_id}')
             return record.id
         except Exception as e:
-            print(f'上傳體重記錄錯誤: {str(e)}')
+            logger.error(f'上傳體重記錄錯誤: {str(e)}', exc_info=True)
             db.rollback()
             return None
     
@@ -106,9 +106,6 @@ class MeasurementModule:
     ) -> Optional[int]:
         '''上傳血糖測量結果'''
         try:
-            import models
-            BloodSugarRecord = models.BloodSugarRecord
-            
             # 解析測量時間
             measured_time = datetime.fromisoformat(measured_at.replace('Z', '+00:00'))
             
@@ -122,9 +119,10 @@ class MeasurementModule:
             db.add(record)
             db.commit()
             db.refresh(record)
+            logger.info(f'血糖記錄已儲存: id={record.id}, user_id={user_id}')
             return record.id
         except Exception as e:
-            print(f'上傳血糖記錄錯誤: {str(e)}')
+            logger.error(f'上傳血糖記錄錯誤: {str(e)}', exc_info=True)
             db.rollback()
             return None
     
@@ -137,9 +135,6 @@ class MeasurementModule:
     ) -> bool:
         '''創建測量記錄上傳記錄'''
         try:
-            import models
-            MeasurementRecord = models.MeasurementRecord
-            
             record = MeasurementRecord(
                 user_id=user_id,
                 record_type=record_type,
@@ -149,7 +144,7 @@ class MeasurementModule:
             db.commit()
             return True
         except Exception as e:
-            print(f'創建測量記錄錯誤: {str(e)}')
+            logger.error(f'創建測量記錄錯誤: {str(e)}', exc_info=True)
             db.rollback()
             return False
     
@@ -157,9 +152,6 @@ class MeasurementModule:
     def get_last_upload_time(db: Session, user_id: int) -> Optional[str]:
         '''獲取最後上傳時間'''
         try:
-            import models
-            MeasurementRecord = models.MeasurementRecord
-            
             # 查詢最近的上傳記錄
             last_record = db.query(MeasurementRecord)\
                 .filter(MeasurementRecord.user_id == user_id)\
@@ -170,5 +162,5 @@ class MeasurementModule:
                 return last_record.uploaded_at.isoformat()
             return None
         except Exception as e:
-            print(f'查詢最後上傳時間錯誤: {str(e)}')
+            logger.error(f'查詢最後上傳時間錯誤: {str(e)}', exc_info=True)
             return None

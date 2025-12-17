@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # 資料庫連接設定（使用 Puyuan.db）
-SQLALCHEMY_DATABASE_URL = "sqlite:///./Puyuan.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///./puyuan.db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 

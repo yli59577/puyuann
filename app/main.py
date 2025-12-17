@@ -3,7 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from app.core.database import engine, Base
+from app.core.database import engine, Base, SessionLocal
+from app.core.cleanup import start_cleanup_scheduler
+from common.utils import get_logger
+
+logger = get_logger(__name__)
 
 # 導入所有 API 路由
 from app._user.api import router as user_router
@@ -19,6 +23,9 @@ from app.friend.api import router as friend_router
 # 建立所有資料表
 Base.metadata.create_all(bind=engine)
 
+# 啟動過期帳號清理任務
+start_cleanup_scheduler(SessionLocal)
+
 # 創建 FastAPI 應用程式
 app = FastAPI(
     title='普元後端 API',
@@ -29,16 +36,16 @@ app = FastAPI(
 # 全域異常處理：確保所有錯誤都回傳 status 欄位，防止 App 崩潰
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    print(f"捕捉到驗證錯誤: {exc}")
+    logger.warning(f"捕捉到驗證錯誤: {exc}")
     # 處理 Pydantic 驗證錯誤 (例如缺少欄位、類型錯誤)
     return JSONResponse(
         status_code=200, # 使用 200 讓 App 能夠解析 JSON
-        content={"status": "1", "message": f"資料驗證錯誤: {exc.errors()}"},
+        content={"status": "1", "message": "The given data was invalid."},
     )
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    print(f"捕捉到 HTTP 錯誤: {exc.detail}")
+    logger.warning(f"捕捉到 HTTP 錯誤: {exc.detail}")
     # 處理 HTTP 錯誤 (例如 404, 401)
     return JSONResponse(
         status_code=200,
@@ -47,7 +54,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    print(f"捕捉到未預期錯誤: {exc}")
+    logger.error(f"捕捉到未預期錯誤: {exc}", exc_info=True)
     # 處理其他未預期的伺服器錯誤
     return JSONResponse(
         status_code=200,

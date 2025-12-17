@@ -9,6 +9,9 @@ from .models import (
     SendInviteRequest, FriendResult, RelationInfo
 )
 from app.core.security import verify_token
+from common.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class FriendModule:
@@ -35,7 +38,7 @@ class FriendModule:
             return user_id
             
         except Exception as e:
-            print(f'[Friend] parse_user_id_from_token 錯誤: {str(e)}')
+            logger.error(f'parse_user_id_from_token 錯誤: {str(e)}', exc_info=True)
             return None
     
     def get_db_connection(self):
@@ -58,11 +61,12 @@ class FriendModule:
         cursor = conn.cursor()
         
         try:
+            logger.debug(f"查詢好友列表，user_id={user_id}")
             # 查詢已接受的好友關係
             cursor.execute(
                 """SELECT f.friend_id as id, u.name, fr.type as relation_type
                    FROM Friendship f
-                   JOIN UserProfile u ON f.friend_id = u.id
+                   JOIN UserProfile u ON f.friend_id = u.user_id
                    JOIN friend_requests fr ON (fr.user_id = ? AND fr.relation_id = f.friend_id) 
                       OR (fr.relation_id = ? AND fr.user_id = f.friend_id)
                    WHERE f.user_id = ? AND f.status = 1 AND fr.status = 1
@@ -70,6 +74,7 @@ class FriendModule:
                 (user_id, user_id, user_id)
             )
             rows = cursor.fetchall()
+            logger.debug(f"查詢到 {len(rows)} 位好友")
             
             return [
                 FriendInfo(
@@ -97,20 +102,39 @@ class FriendModule:
         cursor = conn.cursor()
         
         try:
+            # 先查詢是否有邀請碼
             cursor.execute(
-                "SELECT invitCode FROM UserProfile WHERE id = ?",
+                "SELECT invite_code FROM UserProfile WHERE user_id = ?",
                 (user_id,)
             )
             row = cursor.fetchone()
             
-            return row['invitCode'] if row else None
+            if row and row['invite_code']:
+                return row['invite_code']
             
+            # 如果沒有邀請碼，自動生成一個 6 位數字邀請碼
+            import random
+            invite_code = str(random.randint(100000, 999999))
+            
+            # 更新到資料庫
+            cursor.execute(
+                "UPDATE UserProfile SET invite_code = ? WHERE user_id = ?",
+                (invite_code, user_id)
+            )
+            conn.commit()
+            
+            logger.debug(f"為用戶 {user_id} 生成邀請碼: {invite_code}")
+            return invite_code
+            
+        except Exception as e:
+            logger.error(f"get_invite_code 錯誤: {str(e)}", exc_info=True)
+            return None
         finally:
             conn.close()
     
     def get_friend_requests(self, user_id: int) -> List[FriendRequest]:
         """
-        獲取好友邀請列表
+        獲取好友邀請列表（別人寄給我的邀請）
         
         Args:
             user_id: 使用者 ID
@@ -122,16 +146,18 @@ class FriendModule:
         cursor = conn.cursor()
         
         try:
+            logger.debug(f"查詢好友邀請列表，user_id={user_id}")
             cursor.execute(
                 """SELECT fr.*, u.name, ua.account
                    FROM friend_requests fr
-                   JOIN UserProfile u ON fr.user_id = u.id
+                   JOIN UserProfile u ON fr.user_id = u.user_id
                    JOIN UserAuth ua ON fr.user_id = ua.id
                    WHERE fr.relation_id = ? AND fr.status = 0
                    ORDER BY fr.created_at DESC""",
                 (user_id,)
             )
             rows = cursor.fetchall()
+            logger.debug(f"查詢到 {len(rows)} 筆邀請")
             
             return [
                 FriendRequest(
@@ -172,15 +198,42 @@ class FriendModule:
         try:
             # 根據邀請碼查找目標用戶
             cursor.execute(
-                "SELECT id FROM UserProfile WHERE invitCode = ?",
+                "SELECT user_id FROM UserProfile WHERE invite_code = ?",
                 (data.invite_code,)
             )
             target_user = cursor.fetchone()
             
             if not target_user:
+                logger.warning(f"邀請碼無效: {data.invite_code}")
                 return False
             
-            target_user_id = target_user['id']
+            target_user_id = target_user['user_id']
+            
+            # 不能邀請自己
+            if target_user_id == user_id:
+                logger.warning(f"不能邀請自己")
+                return False
+            
+            # 檢查是否已經是好友
+            cursor.execute(
+                "SELECT id FROM Friendship WHERE user_id = ? AND friend_id = ?",
+                (user_id, target_user_id)
+            )
+            if cursor.fetchone():
+                logger.warning(f"已經是好友")
+                return False
+            
+            # 檢查是否已有待處理的邀請
+            cursor.execute(
+                """SELECT id FROM friend_requests 
+                   WHERE ((user_id = ? AND relation_id = ?) OR (user_id = ? AND relation_id = ?))
+                   AND status = 0""",
+                (user_id, target_user_id, target_user_id, user_id)
+            )
+            if cursor.fetchone():
+                logger.warning(f"已有待處理的邀請")
+                return False
+            
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
             # 創建好友邀請
@@ -192,10 +245,11 @@ class FriendModule:
             )
             
             conn.commit()
+            logger.info(f"邀請已發送: {user_id} -> {target_user_id}")
             return True
             
         except Exception as e:
-            print(f'[Friend] send_friend_invite 錯誤: {str(e)}')
+            logger.error(f'send_friend_invite 錯誤: {str(e)}', exc_info=True)
             conn.rollback()
             return False
         finally:
@@ -251,7 +305,7 @@ class FriendModule:
             return True
             
         except Exception as e:
-            print(f'[Friend] accept_friend_invite 錯誤: {str(e)}')
+            logger.error(f'accept_friend_invite 錯誤: {str(e)}', exc_info=True)
             conn.rollback()
             return False
         finally:
@@ -286,7 +340,7 @@ class FriendModule:
             return cursor.rowcount > 0
             
         except Exception as e:
-            print(f'[Friend] refuse_friend_invite 錯誤: {str(e)}')
+            logger.error(f'refuse_friend_invite 錯誤: {str(e)}', exc_info=True)
             conn.rollback()
             return False
         finally:
@@ -327,7 +381,7 @@ class FriendModule:
             return True
             
         except Exception as e:
-            print(f'[Friend] remove_friends 錯誤: {str(e)}')
+            logger.error(f'remove_friends 錯誤: {str(e)}', exc_info=True)
             conn.rollback()
             return False
         finally:
@@ -335,7 +389,7 @@ class FriendModule:
     
     def get_friend_results(self, user_id: int) -> List[FriendResult]:
         """
-        獲取好友結果列表(我送出的邀請的狀態)
+        獲取好友結果列表(我送出的邀請的狀態) - 只返回未讀的
         
         Args:
             user_id: 使用者 ID
@@ -347,16 +401,28 @@ class FriendModule:
         cursor = conn.cursor()
         
         try:
+            logger.debug(f"查詢好友結果列表，user_id={user_id}")
+            # 只查詢未讀的結果 (read = 0)
             cursor.execute(
                 """SELECT fr.*, u.name, ua.account
                    FROM friend_requests fr
-                   JOIN UserProfile u ON fr.relation_id = u.id
+                   JOIN UserProfile u ON fr.relation_id = u.user_id
                    JOIN UserAuth ua ON fr.relation_id = ua.id
-                   WHERE fr.user_id = ? AND fr.status != 0
+                   WHERE fr.user_id = ? AND fr.status != 0 AND fr.read = 0
                    ORDER BY fr.updated_at DESC""",
                 (user_id,)
             )
             rows = cursor.fetchall()
+            logger.debug(f"查詢到 {len(rows)} 筆未讀結果")
+            
+            # 標記為已讀
+            if rows:
+                cursor.execute(
+                    "UPDATE friend_requests SET read = 1 WHERE user_id = ? AND status != 0 AND read = 0",
+                    (user_id,)
+                )
+                conn.commit()
+                logger.debug(f"已標記 {len(rows)} 筆結果為已讀")
             
             return [
                 FriendResult(

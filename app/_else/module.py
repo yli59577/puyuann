@@ -4,6 +4,9 @@ from sqlalchemy import desc
 from app._else.models import News, ShareDB, NewsItem, ShareRecord, UserInfo, LocationData
 from datetime import datetime
 from typing import List, Optional
+from common.utils import get_logger
+
+logger = get_logger(__name__)
 
 class NewsModule:
     """最新消息業務邏輯"""
@@ -37,7 +40,7 @@ class NewsModule:
                 for news in news_list
             ]
         except Exception as e:
-            print(f"查詢最新消息失敗: {str(e)}")
+            logger.error(f"查詢最新消息失敗: {str(e)}", exc_info=True)
             return []
 
 
@@ -79,7 +82,7 @@ class ShareModule:
             return True
             
         except Exception as e:
-            print(f"創建分享記錄失敗: {str(e)}")
+            logger.error(f"創建分享記錄失敗: {str(e)}", exc_info=True)
             db.rollback()
             return False
     
@@ -132,7 +135,7 @@ class ShareModule:
             return records
             
         except Exception as e:
-            print(f"查詢分享記錄失敗: {str(e)}")
+            logger.error(f"查詢分享記錄失敗: {str(e)}", exc_info=True)
             return []
     
     @staticmethod
@@ -203,5 +206,5 @@ class BadgeModule:
             return True
             
         except Exception as e:
-            print(f"更新徽章失敗: {str(e)}")
+            logger.error(f"更新徽章失敗: {str(e)}", exc_info=True)
             return False

@@ -13,7 +13,9 @@ from app._journal.models import (
     DiaryListResponse
 )
 from app._journal.module import JournalModule
+from common.utils import get_logger
 
+logger = get_logger(__name__)
 router = APIRouter()
 security = HTTPBearer()
 
@@ -44,24 +46,24 @@ def get_diary_list(
     """
     # 1. 從 credentials 解析 Token
     authorization = f"Bearer {credentials.credentials}"
-    print(f"[API DEBUG] Authorization header: {authorization[:50]}...")
+    logger.debug(f"Authorization header: {authorization[:50]}...")
     user_id = JournalModule.parse_user_id_from_token(authorization)
-    print(f"[API DEBUG] Parsed user_id: {user_id}")
+    logger.debug(f"Parsed user_id: {user_id}")
     
     if not user_id:
         return DiaryListResponse(status="1", message="身份驗證失敗", diary=[])
     
     # 2. 檢查用戶是否存在
     user = JournalModule.get_user(db, user_id)
-    print(f"[API DEBUG] User exists: {user is not None}")
+    logger.debug(f"User exists: {user is not None}")
     
     if not user:
         return DiaryListResponse(status="1", message="用戶不存在", diary=[])
     
     # 3. 獲取日記列表
-    print(f"[API DEBUG] Calling get_diary_list with user_id={user_id}, date={date}")
+    logger.debug(f"Calling get_diary_list with user_id={user_id}, date={date}")
     diary_list = JournalModule.get_diary_list(db, user_id, date)
-    print(f"[API DEBUG] get_diary_list returned {len(diary_list) if diary_list else 0} records")
+    logger.debug(f"get_diary_list returned {len(diary_list) if diary_list else 0} records")
     
     if diary_list is not None:
         return DiaryListResponse(

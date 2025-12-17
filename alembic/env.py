@@ -19,6 +19,15 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 from app.core.database import Base
+# Import all models here so that Alembic can see them
+from app.account.models import *
+from app._user.models import *
+from app.care.models import *
+from app.friend.models import *
+from app.measurement.models import *
+from app.medicine.models import *
+from app.a1c.models import *
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

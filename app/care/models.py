@@ -11,14 +11,13 @@ from app.core.database import Base
 
 class Care(Base):
     """關懷諮詢資料表"""
-    __tablename__ = "cares"
+    __tablename__ = "UserCare"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, index=True, nullable=False)
     member_id = Column(Integer, nullable=True)
     reply_id = Column(Integer, nullable=True)
-    message = Column(String, nullable=False)
-    viewed = Column(Boolean, default=False, nullable=False)
+    message = Column(String(100), nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

@@ -4,6 +4,9 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from app.core.security import verify_token
 import sqlite3
+from common.utils import get_logger
+
+logger = get_logger(__name__)
 
 class A1cModule:
     '''糖化血色素模組 - 提供可重用的業務邏輯'''
@@ -25,14 +28,14 @@ class A1cModule:
             return user_id
             
         except Exception as e:
-            print(f'[A1C] parse_user_id_from_token 錯誤: {str(e)}')
+            logger.error(f'parse_user_id_from_token 錯誤: {str(e)}', exc_info=True)
             return None
 
     @staticmethod
     def upload_a1c(user_id: int, a1c: str, recorded_at: str) -> bool:
         '''上傳糖化血色素記錄'''
         try:
-            print(f'[A1C] 上傳糖化血色素: user_id={user_id}, a1c={a1c}, recorded_at={recorded_at}')
+            logger.debug(f'上傳糖化血色素: user_id={user_id}, a1c={a1c}, recorded_at={recorded_at}')
             
             # 使用 sqlite3 直接操作
             conn = sqlite3.connect('Puyuan.db')
@@ -49,20 +52,18 @@ class A1cModule:
             conn.commit()
             conn.close()
             
-            print(f'[A1C] 糖化血色素上傳成功')
+            logger.info(f'糖化血色素上傳成功')
             return True
             
         except Exception as e:
-            print(f'[A1C] 上傳糖化血色素錯誤: {str(e)}')
-            import traceback
-            traceback.print_exc()
+            logger.error(f'上傳糖化血色素錯誤: {str(e)}', exc_info=True)
             return False
 
     @staticmethod
     def get_a1c_list(user_id: int) -> List[Dict[str, Any]]:
         '''獲取用戶的所有糖化血色素記錄'''
         try:
-            print(f'[A1C] 查詢糖化血色素列表: user_id={user_id}')
+            logger.debug(f'查詢糖化血色素列表: user_id={user_id}')
             
             # 使用 sqlite3 直接查詢
             conn = sqlite3.connect('Puyuan.db')
@@ -78,7 +79,7 @@ class A1cModule:
             records = cursor.fetchall()
             conn.close()
             
-            print(f'[A1C] 查詢到 {len(records)} 筆糖化血色素記錄')
+            logger.debug(f'查詢到 {len(records)} 筆糖化血色素記錄')
             
             # 轉換為字典列表
             result = []
@@ -95,19 +96,17 @@ class A1cModule:
             return result
             
         except Exception as e:
-            print(f'[A1C] 查詢糖化血色素列表錯誤: {str(e)}')
-            import traceback
-            traceback.print_exc()
+            logger.error(f'查詢糖化血色素列表錯誤: {str(e)}', exc_info=True)
             return []
 
     @staticmethod
     def delete_a1c_records(user_id: int, ids: List[int]) -> bool:
         '''刪除糖化血色素記錄'''
         try:
-            print(f'[A1C] 刪除糖化血色素記錄: user_id={user_id}, ids={ids}')
+            logger.debug(f'刪除糖化血色素記錄: user_id={user_id}, ids={ids}')
             
             if not ids:
-                print('[A1C] 沒有要刪除的記錄')
+                logger.debug('沒有要刪除的記錄')
                 return True
             
             # 使用 sqlite3 直接操作
@@ -127,11 +126,9 @@ class A1cModule:
             conn.commit()
             conn.close()
             
-            print(f'[A1C] 成功刪除 {deleted_count} 筆糖化血色素記錄')
+            logger.info(f'成功刪除 {deleted_count} 筆糖化血色素記錄')
             return True
             
         except Exception as e:
-            print(f'[A1C] 刪除糖化血色素記錄錯誤: {str(e)}')
-            import traceback
-            traceback.print_exc()
+            logger.error(f'刪除糖化血色素記錄錯誤: {str(e)}', exc_info=True)
             return False

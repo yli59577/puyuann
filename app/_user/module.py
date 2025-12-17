@@ -1,13 +1,16 @@
 ﻿# -*- coding: utf-8 -*-
 from sqlalchemy.orm import Session
 from app.account.models import User as UserAuth
-from app._user.models import UserProfile, UserDefaults, UserSettings
+from app._user.models import UserProfile, UserDefaults, UserSettings, get_taiwan_time
 from app.care.models import Care
 from typing import Optional
 import jwt
 from datetime import datetime, timedelta
 # 導入統一的設定，移除本地的 SECRET_KEY 和 ALGORITHM
 from app.core.security import SECRET_KEY, ALGORITHM, verify_token
+from common.utils import get_logger
+
+logger = get_logger(__name__)
 
 class UserModule:
     
@@ -15,13 +18,13 @@ class UserModule:
     def parse_user_id_from_token(authorization: Optional[str]) -> Optional[int]:
         """從 Authorization Header 中解析用戶 ID"""
         if not authorization:
-            print("缺少 Authorization header")
+            logger.warning("缺少 Authorization header")
             return None
         
         try:
             token_type, token = authorization.split(" ")
             if token_type != "Bearer":
-                print(f"Token 類型錯誤: {token_type}")
+                logger.warning(f"Token 類型錯誤: {token_type}")
                 return None
 
             # 直接使用從 core.security 導入的 verify_token 函數
@@ -32,11 +35,11 @@ class UserModule:
                 return user_id
             else:
                 # 如果 verify_token 回傳 None，表示驗證失敗
-                print("Token 解析失敗: 簽名驗證失敗或格式錯誤")
+                logger.warning("Token 解析失敗: 簽名驗證失敗或格式錯誤")
                 return None
 
         except (jwt.ExpiredSignatureError, ValueError, TypeError) as e:
-            print(f"Token 處理錯誤: {e}")
+            logger.error(f"Token 處理錯誤: {e}", exc_info=True)
             return None
 
     # ... (此檔案的其他部分維持不變) ...
@@ -64,18 +67,47 @@ class UserModule:
     def create_or_update_profile(db: Session, user_id: int, update_data: dict) -> bool:
         '''創建或更新用戶個人資料'''
         try:
-            profile = UserModule.get_profile(db, user_id)
+            logger.debug(f"開始更新，user_id={user_id}, update_data={update_data}")
+            
+            # 先查詢現有 profile
+            profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+            
             if not profile:
+                logger.debug(f"找不到現有 profile，創建新的")
                 profile = UserProfile(user_id=user_id)
                 db.add(profile)
+                db.flush()  # 先 flush 以確保 profile 被添加到 session
+                logger.debug(f"新 profile 已添加到 session")
+            else:
+                logger.debug(f"找到現有 profile，id={profile.id}")
+            
+            # 更新欄位
             for key, value in update_data.items():
+                # 跳過不應該更新的欄位
+                if key in ['id', 'user_id', 'created_at']:
+                    logger.debug(f"跳過唯讀欄位: {key}")
+                    continue
+                    
                 if hasattr(profile, key):
+                    old_value = getattr(profile, key, None)
+                    logger.debug(f"設定 {key}: {old_value} -> {value}")
                     setattr(profile, key, value)
+                else:
+                    logger.warning(f"profile 沒有屬性 {key}")
+            
+            # 確保 updated_at 被更新
+            profile.updated_at = get_taiwan_time()
+            
+            logger.debug(f"準備提交到資料庫")
             db.commit()
+            logger.debug(f"成功提交")
+            
+            # 重新查詢以驗證更新
             db.refresh(profile)
+            logger.debug(f"成功更新，profile={profile.__dict__}")
             return True
         except Exception as e:
-            print(f'更新個人資料錯誤: {str(e)}')
+            logger.error(f'更新個人資料錯誤: {str(e)}', exc_info=True)
             db.rollback()
             return False
     
@@ -94,7 +126,7 @@ class UserModule:
             db.refresh(defaults)
             return True
         except Exception as e:
-            print(f'更新預設值錯誤: {str(e)}')
+            logger.error(f'更新預設值錯誤: {str(e)}', exc_info=True)
             db.rollback()
             return False
 
@@ -113,7 +145,7 @@ class UserModule:
             db.refresh(settings)
             return True
         except Exception as e:
-            print(f'更新設定錯誤: {str(e)}')
+            logger.error(f'更新設定錯誤: {str(e)}', exc_info=True)
             db.rollback()
             return False
 
@@ -121,21 +153,24 @@ class UserModule:
     def get_user_complete_data(db: Session, user_id: int) -> Optional[dict]:
         """獲取用戶所有相關資料，組合成一個字典"""
         try:
-            print(f"[get_user_complete_data] 開始獲取用戶資料，user_id={user_id}")
+            logger.debug(f"開始獲取用戶資料，user_id={user_id}")
+            
+            # 清除會話快取，確保讀取最新資料
+            db.expire_all()
             
             user_auth = db.query(UserAuth).filter(UserAuth.id == user_id).first()
             if not user_auth:
-                print(f"[get_user_complete_data] 找不到 UserAuth，user_id={user_id}")
+                logger.warning(f"找不到 UserAuth，user_id={user_id}")
                 return None
 
-            print(f"[get_user_complete_data] 找到 UserAuth: email={user_auth.email}")
+            logger.debug(f"找到 UserAuth: email={user_auth.email}")
             
             user_profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
             
             if not user_profile:
-                print(f"[get_user_complete_data] 警告: 找不到 UserProfile，user_id={user_id}")
+                logger.warning(f"找不到 UserProfile，user_id={user_id}")
             else:
-                print(f"[get_user_complete_data] 找到 UserProfile: name={user_profile.name}")
+                logger.debug(f"找到 UserProfile: name={user_profile.name}")
 
             # 獲取用戶預設值
             user_defaults = db.query(UserDefaults).filter(UserDefaults.user_id == user_id).first()
@@ -169,9 +204,9 @@ class UserModule:
             }
             
             if user_defaults:
-                print(f"[get_user_complete_data] 找到 UserDefaults 資料")
+                logger.debug(f"找到 UserDefaults 資料")
             else:
-                print(f"[get_user_complete_data] 警告: 找不到 UserDefaults，返回 null 值，user_id={user_id}")
+                logger.warning(f"找不到 UserDefaults，返回 null 值，user_id={user_id}")
 
             # 獲取用戶設定
             user_settings = db.query(UserSettings).filter(UserSettings.user_id == user_id).first()
@@ -192,24 +227,27 @@ class UserModule:
             }
             
             if user_settings:
-                print(f"[get_user_complete_data] 找到 UserSettings 資料")
+                logger.debug(f"找到 UserSettings 資料")
             else:
-                print(f"[get_user_complete_data] 警告: 找不到 UserSettings，返回預設值，user_id={user_id}")
+                logger.warning(f"找不到 UserSettings，返回預設值，user_id={user_id}")
 
+            # 確保 user_profile 不是 None，否則創建一個空的
+            if not user_profile:
+                logger.warning(f"找不到 UserProfile，創建默認值")
+                user_profile = UserProfile(user_id=user_id)
+            
             user_data = {
                 # 從 UserAuth 獲取
                 "id": user_auth.id,
                 "account": user_auth.account or "",
                 "email": user_auth.email or "",
-                "phone": user_auth.phone or "",
-                "verified": 1 if user_auth.verified else 0,  # 轉換 bool 為 int
-                "privacy_policy": 1 if user_auth.privacy_policy else 0,  # 轉換 bool 為 int
-                "must_change_password": 1 if user_auth.must_change_password else 0,  # 轉換 bool 為 int
-                "fcm_id": user_auth.fcm_id or "",
-                "fb_id": user_auth.fb_id or "",
+                "phone": (user_profile.phone or "") if user_profile.phone else "",  # 從 UserProfile 獲取
                 "google_id": user_auth.google_id or "",
                 "apple_id": user_auth.apple_id or "",
                 "login_times": user_auth.login_times or 0,
+                "verified": 1 if user_auth.verified else 0,
+                "privacy_policy": 1 if user_auth.privacy_policy else 0,
+                "must_change_password": 1 if user_auth.must_change_password else 0,
 
                 # 從 UserProfile 獲取
                 "name": user_profile.name or "" if user_profile else "",
@@ -221,7 +259,7 @@ class UserModule:
                 "invite_code": user_profile.invite_code or "" if user_profile else "",
                 "inviteCode": user_profile.invite_code or "" if user_profile else "",  # 駝峰命名版本
                 "badge": user_profile.badge or 0 if user_profile else 0,
-                "avatar": "",  # UserProfile 模型中沒有此欄位，但前端需要，固定返回空字串
+                "avatar": user_profile.avatar or "" if user_profile else "",  # 從 UserProfile 獲取
 
                 # 固定或暫時性欄位
                 "group": "",
@@ -250,10 +288,8 @@ class UserModule:
                 "setting": setting_data
             }
             
-            print(f"[get_user_complete_data] 成功組合用戶資料")
+            logger.debug(f"成功組合用戶資料")
             return user_data
         except Exception as e:
-            print(f"[get_user_complete_data] 發生錯誤: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"發生錯誤: {str(e)}", exc_info=True)
             return None

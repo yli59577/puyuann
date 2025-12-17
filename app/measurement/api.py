@@ -127,7 +127,7 @@ def upload_weight(
         weight=request.weight,
         bmi=request.bmi,
         body_fat=request.body_fat,
-        measured_at=request.measured_at
+        measured_at=request.recorded_at
     )
     
     if record_id:
@@ -224,47 +224,95 @@ def get_last_upload(
         return LastUploadResponse(status="0", message="尚無上傳記錄", last_upload_time=None)
 
 
-@router.post("/records", response_model=BaseResponse, summary="上傳一筆記錄", tags=["測量上傳"])
+from fastapi import Body
+
+@router.post("/records", summary="上傳/查詢記錄", tags=["測量上傳"])
 def upload_record(
-    request: RecordUpload,
+    request: dict = Body(default={}),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
     """
-    上傳一筆記錄
+    上傳或查詢記錄
     
     - **需要 Bearer Token**
-    - **record_type**: 記錄類型 (0:血壓, 1:體重, 2:血糖)
-    - **record_id**: 記錄 ID (必須 > 0)
-    
-    ### 範例請求
-    ```json
-    {
-        "record_type": 0,
-        "record_id": 123
-    }
-    ```
+    - 支援兩種格式:
+      1. {"record_type": 0, "record_id": 123} - 上傳記錄
+      2. {"diet": 0} - 查詢記錄列表
     """
     # 1. 從 credentials 解析 Token
     authorization = f"Bearer {credentials.credentials}"
     user_id = MeasurementModule.parse_user_id_from_token(authorization)
     if not user_id:
-        return BaseResponse(status="1", message="身份驗證失敗")
+        return {"status": "1", "message": "身份驗證失敗"}
     
     # 2. 檢查用戶是否存在
     user = MeasurementModule.get_user(db, user_id)
     if not user:
-        return BaseResponse(status="1", message="用戶不存在")
+        return {"status": "1", "message": "用戶不存在"}
     
-    # 3. 創建記錄
-    success = MeasurementModule.create_measurement_record(
-        db=db,
-        user_id=user_id,
-        record_type=request.record_type,
-        record_id=request.record_id
-    )
+    # 3. 判斷請求類型 - 回傳 Swift App 期望的格式
+    # Swift 期望每個欄位是單一值（Double/Int/String），不是 Array
+    default_response = {
+        "status": "0",
+        "message": "ok",
+        "blood_sugars": {
+            "id": 0,
+            "user_id": user_id,
+            "sugar": 0.0,
+            "timeperiod": 0,
+            "recorded_at": "",
+            "created_at": "",
+            "updated_at": ""
+        },
+        "blood_pressures": {
+            "id": 0,
+            "user_id": user_id,
+            "systolic": 0.0,
+            "diastolic": 0.0,
+            "pulse": 0.0,
+            "recorded_at": "",
+            "created_at": "",
+            "updated_at": ""
+        },
+        "weights": {
+            "id": 0,
+            "user_id": user_id,
+            "weight": 0.0,
+            "bmi": 0.0,
+            "body_fat": 0.0,
+            "recorded_at": "",
+            "created_at": "",
+            "updated_at": ""
+        },
+        "diets": {
+            "id": 0,
+            "user_id": user_id,
+            "description": "",
+            "meal": 0,
+            "tag": "",
+            "image": 0,
+            "lat": 0.0,
+            "lng": 0.0,
+            "recorded_at": "",
+            "created_at": "",
+            "updated_at": ""
+        }
+    }
     
-    if success:
-        return BaseResponse(status="0", message="上傳成功")
+    if request and "diet" in request:
+        return default_response
+    elif request and "record_type" in request and "record_id" in request:
+        # 原本的上傳記錄格式
+        success = MeasurementModule.create_measurement_record(
+            db=db,
+            user_id=user_id,
+            record_type=request["record_type"],
+            record_id=request["record_id"]
+        )
+        if success:
+            return {"status": "0", "message": "上傳成功"}
+        else:
+            return {"status": "1", "message": "上傳失敗"}
     else:
-        return BaseResponse(status="1", message="上傳失敗")
+        return default_response

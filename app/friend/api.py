@@ -9,8 +9,10 @@ from .models import (
     SendInviteRequest, BaseResponse, RemoveFriendsRequest, FriendResultsResponse
 )
 from .module import FriendModule
+from common.utils import get_logger
 
-router = APIRouter(tags=["控糖團好友"])
+logger = get_logger(__name__)
+router = APIRouter()
 security = HTTPBearer(auto_error=False)  # auto_error=False 讓認證失敗不會拋出異常
 
 friend_module = FriendModule()
@@ -49,7 +51,7 @@ async def get_friend_list(
         )
         
     except Exception as e:
-        print(f'[Friend API] get_friend_list 錯誤: {str(e)}')
+        logger.error(f'get_friend_list 錯誤: {str(e)}', exc_info=True)
         return FriendListResponse(
             status="1",
             message="失敗",
@@ -89,7 +91,7 @@ async def get_invite_code(
         )
         
     except Exception as e:
-        print(f'[Friend API] get_invite_code 錯誤: {str(e)}')
+        logger.error(f'get_invite_code 錯誤: {str(e)}', exc_info=True)
         return InviteCodeResponse(
             status="1",
             message="失敗"
@@ -129,7 +131,7 @@ async def get_friend_requests(
         )
         
     except Exception as e:
-        print(f'[Friend API] get_friend_requests 錯誤: {str(e)}')
+        logger.error(f'get_friend_requests 錯誤: {str(e)}', exc_info=True)
         return FriendRequestsResponse(
             status="1",
             message="失敗",
@@ -175,7 +177,7 @@ async def send_friend_invite(
             )
         
     except Exception as e:
-        print(f'[Friend API] send_friend_invite 錯誤: {str(e)}')
+        logger.error(f'send_friend_invite 錯誤: {str(e)}', exc_info=True)
         return BaseResponse(
             status="1",
             message="失敗"
@@ -220,7 +222,7 @@ async def accept_friend_invite(
             )
         
     except Exception as e:
-        print(f'[Friend API] accept_friend_invite 錯誤: {str(e)}')
+        logger.error(f'accept_friend_invite 錯誤: {str(e)}', exc_info=True)
         return BaseResponse(
             status="1",
             message="失敗"
@@ -265,7 +267,7 @@ async def refuse_friend_invite(
             )
         
     except Exception as e:
-        print(f'[Friend API] refuse_friend_invite 錯誤: {str(e)}')
+        logger.error(f'refuse_friend_invite 錯誤: {str(e)}', exc_info=True)
         return BaseResponse(
             status="1",
             message="失敗"
@@ -310,7 +312,7 @@ async def remove_friends(
             )
         
     except Exception as e:
-        print(f'[Friend API] remove_friends 錯誤: {str(e)}')
+        logger.error(f'remove_friends 錯誤: {str(e)}', exc_info=True)
         return BaseResponse(
             status="1",
             message="失敗"
@@ -350,7 +352,7 @@ async def get_friend_results(
         )
         
     except Exception as e:
-        print(f'[Friend API] get_friend_results 錯誤: {str(e)}')
+        logger.error(f'get_friend_results 錯誤: {str(e)}', exc_info=True)
         return FriendResultsResponse(
             status="1",
             message="失敗",

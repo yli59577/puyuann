@@ -4,7 +4,9 @@ from app.core.database import get_db
 from app._user.models import UserProfileUpdate, UserSettingsUpdate, BaseResponse, UserProfileResponse
 from app._user.module import UserModule
 from typing import Optional
+from common.utils import get_logger
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 @router.patch("", response_model=BaseResponse, summary="更新個人資料", tags=["個人資訊"])
@@ -20,22 +22,32 @@ def update_user_profile(
     - **可更新欄位**: name, gender, birthday, height, weight, phone, address, avatar, fcm_id
     - **只更新提供的欄位**，未提供的欄位保持原值
     """
+    logger.debug(f"收到請求，authorization={authorization}")
+    logger.debug(f"request={request}")
+    
     # 1. 解析 Token
     user_id = UserModule.parse_user_id_from_token(authorization)
+    logger.debug(f"解析後 user_id={user_id}")
     if not user_id:
+        logger.warning(f"Token 解析失敗")
         return BaseResponse(status="1", message="authentication failed")
     
     # 2. 檢查用戶是否存在
     user = UserModule.get_user(db, user_id)
+    logger.debug(f"查詢用戶結果: {user}")
     if not user:
+        logger.warning(f"用戶不存在")
         return BaseResponse(status="1", message="user not found")
     
-    # 3. 更新資料
-    update_data = request.dict(exclude_unset=True)
+    # 3. 更新資料 - 包含所有欄位（包括未設置的）
+    update_data = request.dict()
+    logger.debug(f"原始 update_data={update_data}")
     
     # 處理空字串和類型轉換
+    # 注意：空字串 "" 應該被保留（不轉換為 None），除非特別指定
     if "birthday" in update_data:
         if update_data["birthday"] == "" or update_data["birthday"] is None:
+            # 空字串或 None 都設為 None
             update_data["birthday"] = None
     
     if "height" in update_data:
@@ -56,7 +68,10 @@ def update_user_profile(
             except (ValueError, TypeError):
                 update_data["weight"] = None
     
+    logger.debug(f"處理後 update_data={update_data}")
+    
     success = UserModule.create_or_update_profile(db, user_id, update_data)
+    logger.debug(f"更新結果: success={success}")
     
     if success:
         return BaseResponse(status="0", message="success")
@@ -97,10 +112,10 @@ def get_user_profile(
             "message": "success",
             "user": validated_user_data
         }
-        print(f"API 最終回傳資料: {final_response}")
+        logger.debug(f"API 最終回傳資料: {final_response}")
         return final_response
     except Exception as e:
-        print(f"資料驗證失敗: {e}")
+        logger.error(f"資料驗證失敗: {e}", exc_info=True)
         # 若驗證失敗，回傳帶有 status 的錯誤訊息，防止 App 崩潰
         return {
             "status": "1", 

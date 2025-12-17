@@ -73,9 +73,9 @@ class BloodPressureUpload(BaseModel):
 class WeightUpload(BaseModel):
     """上傳體重測量結果"""
     weight: float = Field(..., gt=0, le=500, description="體重 (kg)")
-    bmi: Optional[float] = Field(None, ge=10, le=50, description="BMI")
+    bmi: Optional[float] = Field(None, ge=0, le=50, description="BMI")
     body_fat: Optional[float] = Field(None, ge=0, le=100, description="體脂率 (%)")
-    measured_at: str = Field(..., description="測量時間 (ISO 8601 格式)")
+    recorded_at: str = Field(..., description="測量時間 (ISO 8601 格式)")
 
 
 class BloodSugarUpload(BaseModel):

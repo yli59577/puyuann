@@ -5,13 +5,15 @@ from app.core.database import get_db
 from app.account.models import (
     UserRegister, UserLogin, PasswordReset, PasswordForgot,
     VerificationSend, VerificationCheck,
-    BaseResponse, RegisterResponse, TokenResponse, VerificationSendResponse
+    BaseResponse, RegisterResponse, TokenResponse, VerificationSendResponse, CheckRegisterResponse
 )
 from app.account.module import AccountModule
 from app._user.module import UserModule
 from typing import Optional
+from common.utils import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.post("/register", response_model=BaseResponse, summary="用戶註冊", tags=["用戶身份"])
@@ -61,48 +63,75 @@ def register_user(
             message="成功"
         )
     else:
+        # 返回具體的錯誤訊息
         return BaseResponse(
             status="1",
-            message="失敗"
+            message=result["message"]
         )
 
 
-@router.get("/register/check",response_model=BaseResponse, summary="註冊確認", tags=["用戶身份"])
+@router.get("/register/check", response_model=BaseResponse, summary="檢查帳號是否可以註冊", tags=["用戶身份"])
 def check_register(email: str, db: Session = Depends(get_db)):
     """
-    檢查帳號註冊狀態
+    檢查帳號是否可以註冊
     
     - **email**: 電子郵件（Query Parameter）
     
     ### Response 說明：
-    - **status**: "0" = 帳號不存在（可以註冊）
-    - **status**: "1" = 帳號已存在（不能註冊）
+    - **status**: 
+      - "0" = 帳號可以註冊（不存在或未驗證）
+      - "1" = 帳號已存在且已驗證（不能註冊）
     - **message**: 訊息
     
-    ### 可以註冊：
+    ### 可以註冊範例（帳號不存在）：
     ```json
     {
         "status": "0",
-        "message": "成功"
+        "message": "帳號可以註冊"
     }
     ```
     
-    ### 帳號已存在：
+    ### 可以重新註冊範例（帳號未驗證）：
+    ```json
+    {
+        "status": "0",
+        "message": "帳號未驗證，可以重新註冊"
+    }
+    ```
+    
+    ### 不能註冊範例（帳號已驗證）：
     ```json
     {
         "status": "1",
-        "message": "失敗"
+        "message": "帳號已存在"
     }
     ```
     """
-    result = AccountModule.check_register_status(db, email)
-    
-    if result["exists"]:
-        # 帳號已存在，不能註冊
-        return BaseResponse(status="1", message="失敗")
-    else:
-        # 帳號不存在，可以註冊
-        return BaseResponse(status="0", message="成功")
+    try:
+        result = AccountModule.check_register_status(db, email)
+        logger.debug(f"check_register_status 返回: {result}")
+        
+        # 帳號不存在 → status = "0"（可以註冊）
+        if not result["exists"]:
+            response = BaseResponse(status="0", message="帳號可以註冊")
+            logger.debug("帳號不存在，允許註冊")
+        # 帳號已驗證 → status = "1"（不能註冊）
+        elif result["verified"]:
+            response = BaseResponse(status="1", message="帳號已存在")
+            logger.debug("帳號已驗證，不允許註冊")
+        # 帳號未驗證 → status = "0"（可以重新註冊）
+        else:
+            response = BaseResponse(status="0", message="帳號未驗證，可以重新註冊")
+            logger.debug("帳號未驗證，允許重新註冊")
+        
+        response_dict = response.model_dump()
+        response_json = response.model_dump_json()
+        logger.debug(f"返回的 response dict: {response_dict}")
+        logger.debug(f"返回的 response JSON: {response_json}")
+        return response
+    except Exception as e:
+        logger.error(f"check_register 錯誤: {str(e)}", exc_info=True)
+        return BaseResponse(status="1", message="查詢失敗")
 
 
 @router.post("/auth", summary="用戶登入", tags=["用戶身份"])
@@ -161,11 +190,10 @@ def reset_password(
     db: Session = Depends(get_db)
 ):
     """
-    重設密碼（需要舊密碼）
+    重設密碼（只需要新密碼）
     
     - **需要 Bearer Token**
-    - **oldPassword**: 舊密碼
-    - **newPassword**: 新密碼（至少6位）
+    - **password**: 新密碼（至少6位）
     
     ### 範例請求：
     ```json
@@ -174,63 +202,9 @@ def reset_password(
     Content-Type: application/json
     
     {
-        "oldPassword": "1234",
-        "newPassword": "5678"
+        "password": "新密碼"
     }
     ```
-    
-    ### 成功範例（符合規格書）：
-    ```json
-    {
-        "status": "0",
-        "message": "成功"
-    }
-    ```
-    
-    ### 失敗範例（符合規格書）：
-    ```json
-    {
-        "status": "1",
-        "message": "失敗"
-    }
-    ```
-    """
-    # 1. 解析 Token 獲取用戶 ID
-    user_id = UserModule.parse_user_id_from_token(authorization)
-    if not user_id:
-        return BaseResponse(status="1", message="失敗")
-    
-    # 2. 重設密碼
-    success = AccountModule.reset_password_with_old(
-        db, user_id, request.oldPassword, request.newPassword
-    )
-    
-    if success:
-        return BaseResponse(status="0", message="成功")
-    else:
-        return BaseResponse(status="1", message="失敗")
-
-
-@router.post("/password/forgot", response_model=BaseResponse, summary="忘記密碼", tags=["用戶身份"])
-def forgot_password(request: PasswordForgot, db: Session = Depends(get_db)):
-    """
-    忘記密碼（透過驗證碼重設密碼）
-    
-    - **email**: 電子郵件
-    
-    ### 範例請求（符合規格書）：
-    ```json
-    POST /api/password/forgot
-    Content-Type: application/json
-    
-    {
-        "email": "example@gmail.com"
-    }
-    ```
-    
-    ### Response 說明（符合規格書）：
-    - **status**: "0" = 成功, "1" = 失敗
-    - **message**: 訊息
     
     ### 成功範例：
     ```json
@@ -247,13 +221,58 @@ def forgot_password(request: PasswordForgot, db: Session = Depends(get_db)):
         "message": "失敗"
     }
     ```
+    """
+    # 1. 解析 Token 獲取用戶 ID
+    user_id = UserModule.parse_user_id_from_token(authorization)
+    if not user_id:
+        return BaseResponse(status="1", message="失敗")
+    
+    # 2. 直接重設密碼（不需要舊密碼）
+    success = AccountModule.reset_password(db, user_id, request.password)
+    
+    if success:
+        return BaseResponse(status="0", message="成功")
+    else:
+        return BaseResponse(status="1", message="失敗")
+
+
+@router.post("/password/forgot", response_model=BaseResponse, summary="忘記密碼", tags=["用戶身份"])
+def forgot_password(request: PasswordForgot, db: Session = Depends(get_db)):
+    """
+    忘記密碼 - 發送臨時密碼到郵件
+    
+    - **email**: 電子郵件
+    
+    ### 範例請求：
+    ```json
+    POST /api/password/forgot
+    Content-Type: application/json
+    
+    {
+        "email": "example@gmail.com"
+    }
+    ```
+    
+    ### Response 說明：
+    - **status**: "0" = 成功, "1" = 失敗
+    - **message**: 訊息
+    
+    ### 成功範例：
+    ```json
+    {
+        "status": "0",
+        "message": "成功"
+    }
+    ```
     
     ### 流程：
     1. 使用者呼叫此 API 提供 email
-    2. 系統發送重設密碼的驗證碼到信箱
+    2. 系統生成 6 位數臨時密碼
+    3. 臨時密碼取代原本的密碼
+    4. 發送臨時密碼到郵件
+    5. 用戶使用臨時密碼登入後可重設密碼
     """
-    # 發送驗證碼到信箱
-    result = AccountModule.send_verification_code(db, request.email)
+    result = AccountModule.forgot_password_send_temp(db, request.email)
     
     if result["success"]:
         return BaseResponse(status="0", message="成功")
@@ -311,19 +330,6 @@ def send_verification(request: VerificationSend, db: Session = Depends(get_db)):
     else:
         return VerificationSendResponse(
             status="1",
-            message="失敗"
-        )
-    
-    if result["success"]:
-        return VerificationSendResponse(
-            status="0",
-            code=result["code"],
-            message="成功"
-        )
-    else:
-        return VerificationSendResponse(
-            status="1",
-            code=None,
             message="失敗"
         )
 
