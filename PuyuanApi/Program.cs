@@ -107,4 +107,16 @@ app.MapGet("/", () => new { message = "普元後端 API 服務正在運行", ver
 app.Logger.LogInformation("資料庫: {Path}", app.Services.GetRequiredService<Database>().DbPath);
 app.Logger.LogInformation("訪問 API 文檔: http://{Host}:{Port}/docs", host, port);
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (System.Net.Sockets.SocketException ex) when (ex.SocketErrorCode is System.Net.Sockets.SocketError.AccessDenied or System.Net.Sockets.SocketError.AddressAlreadyInUse)
+{
+    // 10013：埠號落在 Windows 保留範圍（Hyper-V / WSL）；10048：埠號已被其他程式使用
+    // host 啟動失敗後 logger 已被釋放，直接寫到 stderr
+    Console.Error.WriteLine(
+        $"無法使用埠號 {port}（{ex.SocketErrorCode}）。請修改 .env 的 API_PORT。" +
+        "可用 `netsh int ipv4 show excludedportrange protocol=tcp` 查看 Windows 保留的埠號範圍。");
+    Environment.ExitCode = 1;
+}

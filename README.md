@@ -36,9 +36,9 @@ puyuan - Cs/
 dotnet run --project PuyuanApi
 ```
 
-- 本機：http://localhost:8000
-- API 文件（Swagger）：http://localhost:8000/docs
-- 手機：http://你的電腦IP:8000（`ipconfig` 查 IPv4 位址）
+- 本機：http://localhost:5000
+- API 文件（Swagger）：http://localhost:5000/docs
+- 手機：http://你的電腦IP:5000（`ipconfig` 查 IPv4 位址）
 
 埠號與監聽位址由 `.env` 的 `API_HOST` / `API_PORT` 設定。
 
@@ -60,5 +60,5 @@ dotnet run --project PuyuanApi
 
 ## 故障排除
 
-- **埠被佔用**：修改 `.env` 的 `API_PORT`。注意 Windows 可能保留部分埠號範圍（可用 `netsh int ipv4 show excludedportrange protocol=tcp` 查詢）。
+- **埠被佔用 / 啟動出現 SocketException 10013**：埠號落在 Windows 保留範圍（Hyper-V / WSL 會保留大量 8xxx 埠號，例如 8000、8080、8888）。用 `netsh int ipv4 show excludedportrange protocol=tcp` 查詢後，改 `.env` 的 `API_PORT`。
 - **防火牆**：允許 `PuyuanApi.exe` / `dotnet` 通過 Windows 防火牆，手機才能連線。

@@ -18,7 +18,14 @@ public class CleanupService(Database db, ILogger<CleanupService> logger) : Backg
             {
                 logger.LogError(ex, "清理任務出錯: {Message}", ex.Message);
             }
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break; // 程式關閉時正常結束
+            }
         }
     }
 
