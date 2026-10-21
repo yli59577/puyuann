@@ -4,7 +4,7 @@ using PuyuanApi.Core.PyCompat;
 
 namespace PuyuanApi.Modules.Medicine;
 
-/// <summary>就醫、藥物資訊模組（對應 app/medicine/module.py，資料表 medical_info、drug_used）</summary>
+/// <summary>就醫、藥物資訊模組（對應 app/medicine/module.py，資料表 MedicalInfo、DrugInfo）</summary>
 public class MedicineModule(Database db, Security security, ILogger logger)
 {
     /// <summary>
@@ -46,7 +46,7 @@ public class MedicineModule(Database db, Security security, ILogger logger)
         {
             using var conn = db.Open();
             var row = (IDictionary<string, object?>?)conn.QueryFirstOrDefault(
-                "SELECT * FROM medical_info WHERE user_id = @userId", new { userId });
+                "SELECT * FROM MedicalInfo WHERE user_id = @userId", new { userId });
             if (row is null) return null;
 
             return new MedicalInfo(
@@ -73,13 +73,13 @@ public class MedicineModule(Database db, Security security, ILogger logger)
         {
             var now = NowIso();
             using var conn = db.Open();
-            var existing = conn.ExecuteScalar<long?>("SELECT id FROM medical_info WHERE user_id = @userId", new { userId });
+            var existing = conn.ExecuteScalar<long?>("SELECT id FROM MedicalInfo WHERE user_id = @userId", new { userId });
 
             if (existing is not null)
             {
                 conn.Execute(
                     """
-                    UPDATE medical_info
+                    UPDATE MedicalInfo
                     SET oad = COALESCE(@oad, oad), insulin = COALESCE(@insulin, insulin),
                         anti_hypertensives = COALESCE(@antiHypertensives, anti_hypertensives),
                         diabetes_type = COALESCE(@diabetesType, diabetes_type), updated_at = @now
@@ -90,7 +90,7 @@ public class MedicineModule(Database db, Security security, ILogger logger)
             {
                 conn.Execute(
                     """
-                    INSERT INTO medical_info (user_id, oad, insulin, anti_hypertensives, diabetes_type, created_at, updated_at)
+                    INSERT INTO MedicalInfo (user_id, oad, insulin, anti_hypertensives, diabetes_type, created_at, updated_at)
                     VALUES (@userId, @oad, @insulin, @antiHypertensives, @diabetesType, @now, @now)
                     """, new { userId, oad, insulin, antiHypertensives, diabetesType, now });
             }
@@ -109,7 +109,7 @@ public class MedicineModule(Database db, Security security, ILogger logger)
         try
         {
             using var conn = db.Open();
-            return conn.Query("SELECT * FROM drug_used WHERE user_id = @userId ORDER BY recorded_at DESC", new { userId })
+            return conn.Query("SELECT id, drugname AS name, drug_type AS type, recorded_at, created_at, updated_at, user_id FROM DrugInfo WHERE user_id = @userId ORDER BY recorded_at DESC", new { userId })
                 .Select(r => (IDictionary<string, object?>)r)
                 .Select(row => new DrugUsedRecord(
                     PyCoerce.Int(row["id"], "id"),
@@ -137,7 +137,7 @@ public class MedicineModule(Database db, Security security, ILogger logger)
             using var conn = db.Open();
             conn.Execute(
                 """
-                INSERT INTO drug_used (user_id, name, type, recorded_at, created_at, updated_at)
+                INSERT INTO DrugInfo (user_id, drugname, drug_type, recorded_at, created_at, updated_at)
                 VALUES (@userId, @name, @drugType, @recordedAt, @now, @now)
                 """, new { userId, name, drugType, recordedAt, now });
             return true;
@@ -157,7 +157,7 @@ public class MedicineModule(Database db, Security security, ILogger logger)
         try
         {
             using var conn = db.Open();
-            conn.Execute("DELETE FROM drug_used WHERE user_id = @userId AND id IN @ids", new { userId, ids });
+            conn.Execute("DELETE FROM DrugInfo WHERE user_id = @userId AND id IN @ids", new { userId, ids });
             return true;
         }
         catch (Exception ex)

@@ -34,9 +34,9 @@ public class JournalModule(Database db, ILogger logger)
 
             // 查詢血壓記錄（Python 使用 sqlite3 原始查詢，時間字串原樣輸出）
             foreach (var r in Rows(conn, """
-                SELECT id, user_id, systolic, diastolic, pulse, measured_at
-                FROM blood_pressure_records
-                WHERE user_id = @userId AND DATE(measured_at) = @queryDate
+                SELECT id, user_id, systolic, diastolic, pulse, recorded_at
+                FROM BloodPressure
+                WHERE user_id = @userId AND DATE(recorded_at) = @queryDate
                 """, new { userId, queryDate }))
             {
                 diaryList.Add(new DiaryRecord
@@ -46,16 +46,16 @@ public class JournalModule(Database db, ILogger logger)
                     Systolic = Py.Truthy(r["systolic"]) ? Py.Int(r["systolic"]) : 0,
                     Diastolic = Py.Truthy(r["diastolic"]) ? Py.Int(r["diastolic"]) : 0,
                     Pulse = Py.Truthy(r["pulse"]) ? Py.Int(r["pulse"]) : 0,
-                    RecordedAt = Py.Truthy(r["measured_at"]) ? Py.Str(r["measured_at"]) : "",
+                    RecordedAt = Py.Truthy(r["recorded_at"]) ? Py.Str(r["recorded_at"]) : "",
                     Type = "blood_pressure",
                 });
             }
 
             // 查詢體重記錄
             foreach (var r in Rows(conn, """
-                SELECT id, user_id, weight, bmi, body_fat, measured_at
-                FROM weight_records
-                WHERE user_id = @userId AND DATE(measured_at) = @queryDate
+                SELECT id, user_id, weight, bmi, body_fat, recorded_at
+                FROM Weight
+                WHERE user_id = @userId AND DATE(recorded_at) = @queryDate
                 """, new { userId, queryDate }))
             {
                 diaryList.Add(new DiaryRecord
@@ -65,25 +65,25 @@ public class JournalModule(Database db, ILogger logger)
                     Weight = Py.Truthy(r["weight"]) ? Py.Float(r["weight"]) : 0.0,
                     BodyFat = Py.Truthy(r["body_fat"]) ? Py.Float(r["body_fat"]) : 0.0,
                     Bmi = Py.Truthy(r["bmi"]) ? Py.Float(r["bmi"]) : 0.0,
-                    RecordedAt = Py.Truthy(r["measured_at"]) ? Py.Str(r["measured_at"]) : "",
+                    RecordedAt = Py.Truthy(r["recorded_at"]) ? Py.Str(r["recorded_at"]) : "",
                     Type = "weight",
                 });
             }
 
             // 查詢血糖記錄
             foreach (var r in Rows(conn, """
-                SELECT id, user_id, glucose, meal_time, measured_at
-                FROM blood_sugar_records
-                WHERE user_id = @userId AND DATE(measured_at) = @queryDate
+                SELECT id, user_id, sugar, timeperiod, recorded_at
+                FROM BloodSugar
+                WHERE user_id = @userId AND DATE(recorded_at) = @queryDate
                 """, new { userId, queryDate }))
             {
                 diaryList.Add(new DiaryRecord
                 {
                     Id = Py.Truthy(r["id"]) ? Py.Int(r["id"]) : 0,
                     UserId = Py.Truthy(r["user_id"]) ? Py.Int(r["user_id"]) : 0,
-                    Sugar = Py.Truthy(r["glucose"]) ? Py.Float(r["glucose"]) : 0.0,
-                    Timeperiod = Py.Truthy(r["meal_time"]) ? Py.Int(r["meal_time"]) : 0,
-                    RecordedAt = Py.Truthy(r["measured_at"]) ? Py.Str(r["measured_at"]) : "",
+                    Sugar = Py.Truthy(r["sugar"]) ? Py.Float(r["sugar"]) : 0.0,
+                    Timeperiod = Py.Truthy(r["timeperiod"]) ? Py.Int(r["timeperiod"]) : 0,
+                    RecordedAt = Py.Truthy(r["recorded_at"]) ? Py.Str(r["recorded_at"]) : "",
                     Type = "blood_sugar",
                 });
             }
@@ -223,9 +223,9 @@ public class JournalModule(Database db, ILogger logger)
         {
             (string Key, string Table)[] targets =
             [
-                ("blood_pressures", "blood_pressure_records"),
-                ("weights", "weight_records"),
-                ("blood_sugars", "blood_sugar_records"),
+                ("blood_pressures", "BloodPressure"),
+                ("weights", "Weight"),
+                ("blood_sugars", "BloodSugar"),
                 ("diets", "DiaryDiet"),
             ];
 

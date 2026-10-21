@@ -4,7 +4,7 @@ using PuyuanApi.Core.PyCompat;
 
 namespace PuyuanApi.Modules.A1c;
 
-/// <summary>糖化血色素模組 - 提供可重用的業務邏輯（對應 app/a1c/module.py，資料表 a1c_records）</summary>
+/// <summary>糖化血色素模組 - 提供可重用的業務邏輯（對應 app/a1c/module.py，資料表 HbA1c）</summary>
 public class A1cModule(Database db, Security security, ILogger logger)
 {
     /// <summary>從 Authorization Header 解析用戶 ID（"Bearer xxx" → split(' ')[1]）</summary>
@@ -26,7 +26,7 @@ public class A1cModule(Database db, Security security, ILogger logger)
             using var conn = db.Open();
             conn.Execute(
                 """
-                INSERT INTO a1c_records (user_id, a1c, recorded_at, created_at, updated_at)
+                INSERT INTO HbA1c (user_id, a1c, recorded_at, created_at, updated_at)
                 VALUES (@userId, @a1c, @recordedAt, @now, @now)
                 """, new { userId, a1c, recordedAt, now });
 
@@ -54,7 +54,7 @@ public class A1cModule(Database db, Security security, ILogger logger)
             rows = conn.Query(
                 """
                 SELECT id, user_id, a1c, recorded_at, created_at, updated_at
-                FROM a1c_records
+                FROM HbA1c
                 WHERE user_id = @userId
                 ORDER BY recorded_at DESC
                 """, new { userId })
@@ -89,7 +89,7 @@ public class A1cModule(Database db, Security security, ILogger logger)
             }
 
             using var conn = db.Open();
-            var deleted = conn.Execute("DELETE FROM a1c_records WHERE user_id = @userId AND id IN @ids", new { userId, ids });
+            var deleted = conn.Execute("DELETE FROM HbA1c WHERE user_id = @userId AND id IN @ids", new { userId, ids });
             logger.LogInformation("成功刪除 {Count} 筆糖化血色素記錄", deleted);
             return true;
         }

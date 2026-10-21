@@ -36,11 +36,11 @@ public class FriendModule(Database db, Security security, ILogger logger)
         // 查詢已接受的好友關係
         var rows = conn.Query(
             """
-            SELECT f.friend_id as id, u.name, fr.type as relation_type
+            SELECT f.friend_id as id, u.name, fr.friend_type as relation_type
             FROM Friendship f
             JOIN UserProfile u ON f.friend_id = u.user_id
-            JOIN friend_requests fr ON (fr.user_id = @userId AND fr.relation_id = f.friend_id)
-               OR (fr.relation_id = @userId AND fr.user_id = f.friend_id)
+            JOIN Friend fr ON (fr.userId = @userId AND fr.relationId = f.friend_id)
+               OR (fr.relationId = @userId AND fr.userId = f.friend_id)
             WHERE f.user_id = @userId AND f.status = 1 AND fr.status = 1
             ORDER BY f.created_at DESC
             """, new { userId }).Cast<IDictionary<string, object?>>().ToList();
@@ -61,7 +61,7 @@ public class FriendModule(Database db, Security security, ILogger logger)
 
             // 先查詢是否有邀請碼
             var existing = conn.ExecuteScalar<object?>(
-                "SELECT invite_code FROM UserProfile WHERE user_id = @userId", new { userId });
+                "SELECT inviteCode FROM UserProfile WHERE user_id = @userId", new { userId });
             if (Truthy(existing))
                 return PyStr(existing);
 
@@ -69,7 +69,7 @@ public class FriendModule(Database db, Security security, ILogger logger)
             var inviteCode = Random.Shared.Next(100000, 1000000).ToString(CultureInfo.InvariantCulture);
 
             // 更新到資料庫（UserProfile 不存在時不會更新，但仍回傳生成的邀請碼，與 Python 相同）
-            conn.Execute("UPDATE UserProfile SET invite_code = @inviteCode WHERE user_id = @userId",
+            conn.Execute("UPDATE UserProfile SET inviteCode = @inviteCode WHERE user_id = @userId",
                 new { inviteCode, userId });
 
             logger.LogDebug("為用戶 {UserId} 生成邀請碼: {InviteCode}", userId, inviteCode);
@@ -90,11 +90,12 @@ public class FriendModule(Database db, Security security, ILogger logger)
 
         var rows = conn.Query(
             """
-            SELECT fr.*, u.name, ua.account
-            FROM friend_requests fr
-            JOIN UserProfile u ON fr.user_id = u.user_id
-            JOIN UserAuth ua ON fr.user_id = ua.id
-            WHERE fr.relation_id = @userId AND fr.status = 0
+            SELECT fr.id, fr.userId AS user_id, fr.relationId AS relation_id, fr.friend_type AS type,
+                   fr.read, fr.status, fr.created_at, fr.updated_at, u.name, ua.account
+            FROM Friend fr
+            JOIN UserProfile u ON fr.userId = u.user_id
+            JOIN UserAuth ua ON fr.userId = ua.id
+            WHERE fr.relationId = @userId AND fr.status = 0
             ORDER BY fr.created_at DESC
             """, new { userId }).Cast<IDictionary<string, object?>>().ToList();
         logger.LogDebug("查詢到 {Count} 筆邀請", rows.Count);
@@ -120,7 +121,7 @@ public class FriendModule(Database db, Security security, ILogger logger)
 
             // 根據邀請碼查找目標用戶
             var target = conn.QueryFirstOrDefault<long?>(
-                "SELECT user_id FROM UserProfile WHERE invite_code = @code", new { code = data.InviteCode });
+                "SELECT user_id FROM UserProfile WHERE inviteCode = @code", new { code = data.InviteCode });
             if (target is null)
             {
                 logger.LogWarning("邀請碼無效: {InviteCode}", data.InviteCode);
@@ -147,8 +148,8 @@ public class FriendModule(Database db, Security security, ILogger logger)
             // 檢查是否已有待處理的邀請
             if (conn.QueryFirstOrDefault<long?>(
                     """
-                    SELECT id FROM friend_requests
-                    WHERE ((user_id = @userId AND relation_id = @targetUserId) OR (user_id = @targetUserId AND relation_id = @userId))
+                    SELECT id FROM Friend
+                    WHERE ((userId = @userId AND relationId = @targetUserId) OR (userId = @targetUserId AND relationId = @userId))
                     AND status = 0
                     """, new { userId, targetUserId }) is not null)
             {
@@ -161,8 +162,8 @@ public class FriendModule(Database db, Security security, ILogger logger)
             // 創建好友邀請
             conn.Execute(
                 """
-                INSERT INTO friend_requests
-                (user_id, relation_id, type, read, status, created_at, updated_at)
+                INSERT INTO Friend
+                (userId, relationId, friend_type, read, status, created_at, updated_at)
                 VALUES (@userId, @targetUserId, @type, 0, 0, @now, @now)
                 """, new { userId, targetUserId, type = data.Type, now });
 
@@ -187,13 +188,13 @@ public class FriendModule(Database db, Security security, ILogger logger)
 
             // 獲取邀請資訊
             var inviter = conn.QueryFirstOrDefault<long?>(
-                "SELECT user_id FROM friend_requests WHERE id = @inviteId AND relation_id = @userId",
+                "SELECT userId FROM Friend WHERE id = @inviteId AND relationId = @userId",
                 new { inviteId, userId }, tx);
             if (inviter is null)
                 return false;
 
             // 更新邀請狀態為已接受
-            conn.Execute("UPDATE friend_requests SET status = 1, read = 1, updated_at = @now WHERE id = @inviteId",
+            conn.Execute("UPDATE Friend SET status = 1, read = 1, updated_at = @now WHERE id = @inviteId",
                 new { now, inviteId }, tx);
 
             // 添加雙向好友關係
@@ -226,9 +227,9 @@ public class FriendModule(Database db, Security security, ILogger logger)
             // 更新邀請狀態為已拒絕
             var affected = conn.Execute(
                 """
-                UPDATE friend_requests
+                UPDATE Friend
                 SET status = 2, read = 1, updated_at = @now
-                WHERE id = @inviteId AND relation_id = @userId
+                WHERE id = @inviteId AND relationId = @userId
                 """, new { now, inviteId, userId });
             return affected > 0;
         }
@@ -275,11 +276,12 @@ public class FriendModule(Database db, Security security, ILogger logger)
         // 只查詢未讀的結果 (read = 0)
         var rows = conn.Query(
             """
-            SELECT fr.*, u.name, ua.account
-            FROM friend_requests fr
-            JOIN UserProfile u ON fr.relation_id = u.user_id
-            JOIN UserAuth ua ON fr.relation_id = ua.id
-            WHERE fr.user_id = @userId AND fr.status != 0 AND fr.read = 0
+            SELECT fr.id, fr.userId AS user_id, fr.relationId AS relation_id, fr.friend_type AS type,
+                   fr.read, fr.status, fr.created_at, fr.updated_at, u.name, ua.account
+            FROM Friend fr
+            JOIN UserProfile u ON fr.relationId = u.user_id
+            JOIN UserAuth ua ON fr.relationId = ua.id
+            WHERE fr.userId = @userId AND fr.status != 0 AND fr.read = 0
             ORDER BY fr.updated_at DESC
             """, new { userId }).Cast<IDictionary<string, object?>>().ToList();
         logger.LogDebug("查詢到 {Count} 筆未讀結果", rows.Count);
@@ -287,7 +289,7 @@ public class FriendModule(Database db, Security security, ILogger logger)
         // 標記為已讀（與 Python 相同：先 commit 再組回應，組回應失敗也已標記）
         if (rows.Count > 0)
         {
-            conn.Execute("UPDATE friend_requests SET read = 1 WHERE user_id = @userId AND status != 0 AND read = 0",
+            conn.Execute("UPDATE Friend SET read = 1 WHERE userId = @userId AND status != 0 AND read = 0",
                 new { userId });
             logger.LogDebug("已標記 {Count} 筆結果為已讀", rows.Count);
         }

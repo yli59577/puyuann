@@ -27,7 +27,7 @@ public class MeasurementModule(Database db, Security security, ILogger logger)
     public long? UploadBloodPressure(int userId, int systolic, int diastolic, int? pulse, string measuredAt) =>
         Insert("血壓", measuredAt,
             """
-            INSERT INTO blood_pressure_records (user_id, systolic, diastolic, pulse, measured_at, created_at, updated_at)
+            INSERT INTO BloodPressure (user_id, systolic, diastolic, pulse, recorded_at, created_at, updated_at)
             VALUES (@userId, @systolic, @diastolic, @pulse, @measured, @now, @now);
             SELECT last_insert_rowid();
             """,
@@ -38,7 +38,7 @@ public class MeasurementModule(Database db, Security security, ILogger logger)
     public long? UploadWeight(int userId, double weight, double? bmi, double? bodyFat, string measuredAt) =>
         Insert("體重", measuredAt,
             """
-            INSERT INTO weight_records (user_id, weight, bmi, body_fat, measured_at, created_at, updated_at)
+            INSERT INTO Weight (user_id, weight, bmi, body_fat, recorded_at, created_at, updated_at)
             VALUES (@userId, @weight, @bmi, @bodyFat, @measured, @now, @now);
             SELECT last_insert_rowid();
             """,
@@ -49,7 +49,7 @@ public class MeasurementModule(Database db, Security security, ILogger logger)
     public long? UploadBloodSugar(int userId, int glucose, int mealTime, string measuredAt) =>
         Insert("血糖", measuredAt,
             """
-            INSERT INTO blood_sugar_records (user_id, glucose, meal_time, measured_at, created_at, updated_at)
+            INSERT INTO BloodSugar (user_id, sugar, timeperiod, recorded_at, created_at, updated_at)
             VALUES (@userId, @glucose, @mealTime, @measured, @now, @now);
             SELECT last_insert_rowid();
             """,

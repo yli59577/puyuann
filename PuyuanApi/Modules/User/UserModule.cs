@@ -125,7 +125,7 @@ public class UserModule(Database db, ILogger logger)
             using var tx = conn.BeginTransaction();
 
             var settings = conn.QueryFirstOrDefault(
-                "SELECT id, after_recording, no_recording_for_a_day FROM UserSettings WHERE user_id = @userId LIMIT 1",
+                "SELECT id, after_recording, no_recording_for_a_day FROM Setting WHERE user_id = @userId LIMIT 1",
                 new { userId }, tx) as IDictionary<string, object?>;
 
             if (settings is null)
@@ -134,7 +134,7 @@ public class UserModule(Database db, ILogger logger)
                 var now = PyOrm.SqlaDateTime(TimeUtil.TaiwanNow());
                 conn.Execute(
                     """
-                    INSERT INTO UserSettings (user_id, after_recording, no_recording_for_a_day, over_max_or_under_min,
+                    INSERT INTO Setting (user_id, after_recording, no_recording_for_a_day, over_max_or_under_min,
                                               after_meal, unit_of_sugar, unit_of_weight, unit_of_height, created_at, updated_at)
                     VALUES (@userId, @afterRecording, @noRecording, 0, 0, 0, 0, 0, @now, @now)
                     """,
@@ -159,7 +159,7 @@ public class UserModule(Database db, ILogger logger)
                 if (sets.Count > 0)
                 {
                     conn.Execute(
-                        $"UPDATE UserSettings SET {string.Join(", ", sets)}, updated_at = @now WHERE id = @id",
+                        $"UPDATE Setting SET {string.Join(", ", sets)}, updated_at = @now WHERE id = @id",
                         new
                         {
                             data.AfterRecording, data.NoRecordingForADay,
@@ -198,12 +198,12 @@ public class UserModule(Database db, ILogger logger)
             var (authCreated, authUpdated) = userAuth.ParseDates();
 
             var profile = QueryRow(conn,
-                "SELECT phone, name, gender, birthday, height, weight, address, invite_code, badge, avatar, created_at, updated_at FROM UserProfile WHERE user_id = @userId LIMIT 1",
+                "SELECT phone, name, gender, birthday, height, weight, address, inviteCode AS invite_code, badge, avatar, created_at, updated_at FROM UserProfile WHERE user_id = @userId LIMIT 1",
                 userId);
             if (profile is null) logger.LogWarning("找不到 UserProfile，user_id={UserId}", userId);
 
             // 獲取用戶預設值
-            var defaults = QueryRow(conn, "SELECT * FROM UserDefaults WHERE user_id = @userId LIMIT 1", userId);
+            var defaults = QueryRow(conn, "SELECT * FROM [Default] WHERE user_id = @userId LIMIT 1", userId);
             object D(string col) => defaults?[col] ?? 0L;
             var defaultData = new Dictionary<string, object?>
             {
@@ -234,7 +234,7 @@ public class UserModule(Database db, ILogger logger)
             };
 
             // 獲取用戶設定（所有欄位使用預設值，避免 Swift 解析失敗）
-            var settings = QueryRow(conn, "SELECT * FROM UserSettings WHERE user_id = @userId LIMIT 1", userId);
+            var settings = QueryRow(conn, "SELECT * FROM Setting WHERE user_id = @userId LIMIT 1", userId);
             long S(string col) => settings is not null && PyOrm.Truthy(settings[col]) ? 1 : 0;
             var settingData = new Dictionary<string, object?>
             {

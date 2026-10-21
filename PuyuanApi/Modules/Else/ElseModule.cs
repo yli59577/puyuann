@@ -135,15 +135,15 @@ public class ElseModule(Database db, ILogger logger)
                 case 0: // 血壓
                 {
                     var r = Rows(conn, """
-                        SELECT id, user_id, systolic, diastolic, pulse, measured_at, created_at, updated_at
-                        FROM blood_pressure_records WHERE id = @recordId AND user_id = @sharerUserId LIMIT 1
+                        SELECT id, user_id, systolic, diastolic, pulse, recorded_at, created_at, updated_at
+                        FROM BloodPressure WHERE id = @recordId AND user_id = @sharerUserId LIMIT 1
                         """, new { recordId, sharerUserId }).FirstOrDefault();
                     if (r is null)
                     {
                         logger.LogWarning("找不到血壓記錄: id={RecordId}, user_id={UserId}", recordId, sharerUserId);
                         return null;
                     }
-                    var (recordedAt, createdAt) = RecordTimes(r, "measured_at");
+                    var (recordedAt, createdAt) = RecordTimes(r, "recorded_at");
                     return new ShareRecord
                     {
                         Id = Py.Int(Required(r["id"])),
@@ -162,15 +162,15 @@ public class ElseModule(Database db, ILogger logger)
                 case 1: // 體重
                 {
                     var r = Rows(conn, """
-                        SELECT id, user_id, weight, bmi, body_fat, measured_at, created_at, updated_at
-                        FROM weight_records WHERE id = @recordId AND user_id = @sharerUserId LIMIT 1
+                        SELECT id, user_id, weight, bmi, body_fat, recorded_at, created_at, updated_at
+                        FROM Weight WHERE id = @recordId AND user_id = @sharerUserId LIMIT 1
                         """, new { recordId, sharerUserId }).FirstOrDefault();
                     if (r is null)
                     {
                         logger.LogWarning("找不到體重記錄: id={RecordId}, user_id={UserId}", recordId, sharerUserId);
                         return null;
                     }
-                    var (recordedAt, createdAt) = RecordTimes(r, "measured_at");
+                    var (recordedAt, createdAt) = RecordTimes(r, "recorded_at");
                     return new ShareRecord
                     {
                         Id = Py.Int(Required(r["id"])),
@@ -189,21 +189,21 @@ public class ElseModule(Database db, ILogger logger)
                 case 2: // 血糖
                 {
                     var r = Rows(conn, """
-                        SELECT id, user_id, glucose, meal_time, measured_at, created_at, updated_at
-                        FROM blood_sugar_records WHERE id = @recordId AND user_id = @sharerUserId LIMIT 1
+                        SELECT id, user_id, sugar, timeperiod, recorded_at, created_at, updated_at
+                        FROM BloodSugar WHERE id = @recordId AND user_id = @sharerUserId LIMIT 1
                         """, new { recordId, sharerUserId }).FirstOrDefault();
                     if (r is null)
                     {
                         logger.LogWarning("找不到血糖記錄: id={RecordId}, user_id={UserId}", recordId, sharerUserId);
                         return null;
                     }
-                    var (recordedAt, createdAt) = RecordTimes(r, "measured_at");
+                    var (recordedAt, createdAt) = RecordTimes(r, "recorded_at");
                     return new ShareRecord
                     {
                         Id = Py.Int(Required(r["id"])),
                         UserId = Py.Int(Required(r["user_id"])),
-                        Sugar = Py.Float(Required(r["glucose"])),
-                        Timeperiod = OptInt(r["meal_time"]),
+                        Sugar = Py.Float(Required(r["sugar"])),
+                        Timeperiod = OptInt(r["timeperiod"]),
                         RelationType = relType,
                         RelationId = relId,
                         Type = dataType,
